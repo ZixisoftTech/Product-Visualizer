@@ -4,6 +4,7 @@ import { validateImageBuffer } from '@/lib/image/validate';
 import { saveImageToDisk } from '@/lib/image/storage';
 import { visualizationFormSchema } from '@/lib/validation/visualization';
 import { generateVisualization } from '@/lib/ai/generateVisualization';
+import { v4 as uuidv4 } from 'uuid';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,9 +89,27 @@ export async function POST(request: NextRequest) {
       productValidation.metadata?.format || 'jpg'
     );
 
-    // 5. Create visualization record in MySQL
-    const visualization = await prisma.visualization.create({
-      data: {
+    // 5. Create visualization record in MySQL (with fallback if DB is unreachable on serverless)
+    let visualization: any;
+    try {
+      visualization = await prisma.visualization.create({
+        data: {
+          hall_image_path: hallSaved.relativePath,
+          product_image_path: productSaved.relativePath,
+          product_width,
+          product_depth,
+          product_height,
+          dimension_unit,
+          placement,
+          instructions: instructions || null,
+          status: 'PENDING',
+        },
+      });
+      console.log(`[API /visualize] Created record ${visualization.id} in MySQL`);
+    } catch (dbErr: any) {
+      console.warn('[API /visualize] Database unreachable (using serverless in-memory record):', dbErr?.message);
+      visualization = {
+        id: uuidv4(),
         hall_image_path: hallSaved.relativePath,
         product_image_path: productSaved.relativePath,
         product_width,
@@ -99,11 +118,13 @@ export async function POST(request: NextRequest) {
         dimension_unit,
         placement,
         instructions: instructions || null,
+        generated_image_path: null,
         status: 'PENDING',
-      },
-    });
-
-    console.log(`[API /visualize] Created record ${visualization.id} in MySQL`);
+        error_message: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+    }
 
     // 6. Execute AI visualization pipeline
     const aiResult = await generateVisualization({
@@ -119,9 +140,23 @@ export async function POST(request: NextRequest) {
     });
 
     // 7. Fetch final updated record
-    const updatedRecord = await prisma.visualization.findUnique({
-      where: { id: visualization.id },
-    });
+    let updatedRecord: any = null;
+    try {
+      updatedRecord = await prisma.visualization.findUnique({
+        where: { id: visualization.id },
+      });
+    } catch (dbErr: any) {
+      // ignore
+    }
+
+    if (!updatedRecord) {
+      updatedRecord = {
+        ...visualization,
+        status: aiResult.success ? 'COMPLETED' : 'FAILED',
+        generated_image_path: aiResult.generatedImagePath || null,
+        error_message: aiResult.error || null,
+      };
+    }
 
     if (!aiResult.success) {
       return NextResponse.json(

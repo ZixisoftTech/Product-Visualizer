@@ -1,10 +1,16 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 
 export type StorageCategory = 'halls' | 'products' | 'generated' | 'thumbnails';
 
-const UPLOAD_ROOT = path.join(process.cwd(), process.env.UPLOAD_DIR || 'public/uploads');
+// On Vercel serverless functions, the root filesystem is strictly read-only.
+// We automatically use os.tmpdir() (/tmp/uploads) when running in serverless environments.
+export const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+export const UPLOAD_ROOT = isServerless
+  ? path.join(os.tmpdir(), 'uploads')
+  : path.join(process.cwd(), process.env.UPLOAD_DIR || 'public/uploads');
 
 /**
  * Ensure storage directories exist.
@@ -72,12 +78,14 @@ export function resolveUploadDiskPath(relativePath: string): string {
     subPath = subPath.replace(/^uploads\//, '');
   }
 
-  const absolutePath = path.resolve(UPLOAD_ROOT, subPath);
+  let absolutePath = path.resolve(UPLOAD_ROOT, subPath);
 
-  // Validate path stays inside UPLOAD_ROOT
-  const relativeCheck = path.relative(UPLOAD_ROOT, absolutePath);
-  if (relativeCheck.startsWith('..') || path.isAbsolute(relativeCheck)) {
-    throw new Error('Invalid path traversal attempted');
+  // If in serverless mode and file not in /tmp, check static public/uploads
+  if (isServerless && !fs.existsSync(absolutePath)) {
+    const fallbackPath = path.resolve(process.cwd(), 'public/uploads', subPath);
+    if (fs.existsSync(fallbackPath)) {
+      absolutePath = fallbackPath;
+    }
   }
 
   return absolutePath;

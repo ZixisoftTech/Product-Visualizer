@@ -32,7 +32,7 @@ export async function generateVisualization(
     await prisma.visualization.update({
       where: { id: visualizationId },
       data: { status: 'PROCESSING', error_message: null },
-    });
+    }).catch((dbErr) => console.warn('[AI Pipeline] Database update warning (PROCESSING):', dbErr?.message));
 
     // 2. Read source images from disk
     console.log(`[AI Pipeline] Reading source images: ${hallImagePath} & ${productImagePath}`);
@@ -142,7 +142,7 @@ Output the customer's real room with the showroom product naturally placed insid
         generated_image_path: saved.relativePath,
         error_message: isMock ? 'Generated in development mock mode (Configure OPENAI_API_KEY in .env.local for live AI)' : null,
       },
-    });
+    }).catch((dbErr) => console.warn('[AI Pipeline] Database update warning (COMPLETED):', dbErr?.message));
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[AI Pipeline] Successfully completed visualization ${visualizationId} in ${elapsed}s. Saved: ${saved.relativePath}`);
