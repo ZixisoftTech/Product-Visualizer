@@ -11,8 +11,17 @@ export interface ImageValidationResult {
   };
 }
 
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const ALLOWED_FORMATS = ['jpeg', 'jpg', 'png', 'webp'];
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/*',
+  'application/octet-stream',
+];
+const ALLOWED_FORMATS = ['jpeg', 'jpg', 'png', 'webp', 'heic', 'heif'];
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
 /**

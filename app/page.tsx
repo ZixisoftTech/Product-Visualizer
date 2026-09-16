@@ -12,6 +12,8 @@ import { ProcessingState } from '@/components/ProcessingState';
 import { ResultViewer } from '@/components/ResultViewer';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
+import { compressImageForUpload } from '@/lib/image/compressClient';
+
 interface VisualizationRecord {
   id: string;
   hall_image_path: string;
@@ -52,11 +54,18 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentVisualization, setCurrentVisualization] = useState<VisualizationRecord | null>(null);
 
-  // Image handlers
+  // Image handlers with safe URL creation
   const handleHallSelect = (file: File) => {
     setHallFile(file);
-    const url = URL.createObjectURL(file);
-    setHallPreview(url);
+    try {
+      if (hallPreview) URL.revokeObjectURL(hallPreview);
+      const url = URL.createObjectURL(file);
+      setHallPreview(url);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (e) => setHallPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
     setErrorMessage(null);
   };
 
@@ -68,8 +77,15 @@ export default function Home() {
 
   const handleProductSelect = (file: File) => {
     setProductFile(file);
-    const url = URL.createObjectURL(file);
-    setProductPreview(url);
+    try {
+      if (productPreview) URL.revokeObjectURL(productPreview);
+      const url = URL.createObjectURL(file);
+      setProductPreview(url);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (e) => setProductPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
     setErrorMessage(null);
   };
 
@@ -112,9 +128,16 @@ export default function Home() {
     setIsProcessing(true);
 
     try {
+      // 1. Client-side compress images to prevent mobile memory & Vercel 4.5MB payload limits
+      const [readyHall, readyProduct] = await Promise.all([
+        compressImageForUpload(hallFile),
+        compressImageForUpload(productFile),
+      ]);
+
       const formData = new FormData();
-      formData.append('hall_image', hallFile);
-      formData.append('product_image', productFile);
+      // Ensure clean ASCII filename to avoid iOS Safari FormData pattern matching errors
+      formData.append('hall_image', readyHall, 'hall_photo.jpg');
+      formData.append('product_image', readyProduct, 'product_photo.jpg');
       formData.append('product_width', width);
       formData.append('product_depth', depth);
       formData.append('product_height', height);
@@ -127,12 +150,22 @@ export default function Home() {
         body: formData,
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate visualization');
+        if (response.status === 413) {
+          throw new Error('Upload size exceeded limit. Please try with smaller photos.');
+        }
+        let serverErrorMsg = 'Failed to generate visualization';
+        try {
+          const errData = await response.json();
+          serverErrorMsg = errData.error || serverErrorMsg;
+        } catch {
+          const text = await response.text();
+          serverErrorMsg = text || `Server error (${response.status})`;
+        }
+        throw new Error(serverErrorMsg);
       }
 
+      const data = await response.json();
       setCurrentVisualization(data.visualization);
     } catch (err: any) {
       console.error('Visualization error:', err);
@@ -152,9 +185,14 @@ export default function Home() {
     try {
       let response: Response;
       if (hallFile && productFile) {
+        const [readyHall, readyProduct] = await Promise.all([
+          compressImageForUpload(hallFile),
+          compressImageForUpload(productFile),
+        ]);
+
         const formData = new FormData();
-        formData.append('hall_image', hallFile);
-        formData.append('product_image', productFile);
+        formData.append('hall_image', readyHall, 'hall_photo.jpg');
+        formData.append('product_image', readyProduct, 'product_photo.jpg');
         formData.append('product_width', width);
         formData.append('product_depth', depth);
         formData.append('product_height', height);
@@ -177,12 +215,22 @@ export default function Home() {
         });
       }
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || 'Regeneration failed');
+        if (response.status === 413) {
+          throw new Error('Upload size exceeded limit.');
+        }
+        let serverErrorMsg = 'Regeneration failed';
+        try {
+          const errData = await response.json();
+          serverErrorMsg = errData.error || serverErrorMsg;
+        } catch {
+          const text = await response.text();
+          serverErrorMsg = text || `Server error (${response.status})`;
+        }
+        throw new Error(serverErrorMsg);
       }
 
+      const data = await response.json();
       setCurrentVisualization(data.visualization);
       setPlacement(newPlacement);
       setInstructions(newInstructions);

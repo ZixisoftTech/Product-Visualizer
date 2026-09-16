@@ -120,7 +120,7 @@ export function ProductUpload({
       <input
         ref={cameraInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/*"
         capture="environment"
         className="hidden"
         onChange={handleInputChange}
@@ -129,7 +129,7 @@ export function ProductUpload({
       <input
         ref={galleryInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/*"
         className="hidden"
         onChange={handleInputChange}
         disabled={disabled}
