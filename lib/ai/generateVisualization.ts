@@ -150,6 +150,7 @@ Output the customer's real room with the showroom product naturally placed insid
     return {
       success: true,
       generatedImagePath: saved.relativePath,
+      generatedImageData: 'data:image/png;base64,' + generatedBuffer.toString('base64'),
       roomAnalysis,
       productAnalysis,
       promptUsed,

@@ -23,12 +23,15 @@ interface VisualizationRecord {
   placement: string;
   instructions: string | null;
   generated_image_path: string | null;
+  generated_image_data?: string | null;
   status: string;
   error_message: string | null;
 }
 
 interface ResultViewerProps {
   visualization: VisualizationRecord;
+  originalPreview?: string | null;
+  productPreview?: string | null;
   onRegenerate: (newPlacement: string, newInstructions: string) => Promise<void>;
   onStartNew: () => void;
   isRegenerating: boolean;
@@ -36,6 +39,8 @@ interface ResultViewerProps {
 
 export function ResultViewer({
   visualization,
+  originalPreview,
+  productPreview,
   onRegenerate,
   onStartNew,
   isRegenerating,
@@ -46,9 +51,9 @@ export function ResultViewer({
   const [newPlacement, setNewPlacement] = useState(visualization.placement);
   const [newInstructions, setNewInstructions] = useState(visualization.instructions || '');
 
-  const originalUrl = visualization.hall_image_path;
-  const generatedUrl = visualization.generated_image_path || visualization.hall_image_path;
-  const productUrl = visualization.product_image_path;
+  const originalUrl = originalPreview || visualization.hall_image_path;
+  const generatedUrl = visualization.generated_image_data || visualization.generated_image_path || originalUrl;
+  const productUrl = productPreview || visualization.product_image_path;
 
   const handleRegenerateSubmit = (e: React.FormEvent) => {
     e.preventDefault();

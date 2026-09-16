@@ -170,7 +170,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      visualization: updatedRecord,
+      visualization: {
+        ...updatedRecord,
+        generated_image_data: aiResult.generatedImageData,
+      },
       isMock: aiResult.isMock,
     });
   } catch (error: any) {

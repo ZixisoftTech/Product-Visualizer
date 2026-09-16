@@ -58,9 +58,24 @@ export async function POST(
       instructions,
     });
 
-    const updated = await prisma.visualization.findUnique({
-      where: { id },
-    });
+    let updated: any = null;
+    try {
+      updated = await prisma.visualization.findUnique({
+        where: { id },
+      });
+    } catch (e) {
+      // ignore
+    }
+
+    if (!updated) {
+      updated = {
+        ...existing,
+        placement,
+        instructions: instructions || null,
+        status: aiResult.success ? 'COMPLETED' : 'FAILED',
+        generated_image_path: aiResult.generatedImagePath || null,
+      };
+    }
 
     if (!aiResult.success) {
       return NextResponse.json(
@@ -74,7 +89,10 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      visualization: updated,
+      visualization: {
+        ...updated,
+        generated_image_data: aiResult.generatedImageData,
+      },
       isMock: aiResult.isMock,
     });
   } catch (error: any) {

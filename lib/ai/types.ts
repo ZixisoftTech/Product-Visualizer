@@ -36,6 +36,7 @@ export interface VisualizationGenerationInput {
 export interface VisualizationGenerationResult {
   success: boolean;
   generatedImagePath?: string;
+  generatedImageData?: string;
   error?: string;
   roomAnalysis?: RoomAnalysis;
   productAnalysis?: ProductAnalysis;

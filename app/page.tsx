@@ -23,6 +23,7 @@ interface VisualizationRecord {
   placement: string;
   instructions: string | null;
   generated_image_path: string | null;
+  generated_image_data?: string | null;
   status: string;
   error_message: string | null;
 }
@@ -149,14 +150,32 @@ export default function Home() {
     setErrorMessage(null);
 
     try {
-      const response = await fetch(`/api/visualize/${currentVisualization.id}/regenerate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          placement: newPlacement,
-          instructions: newInstructions,
-        }),
-      });
+      let response: Response;
+      if (hallFile && productFile) {
+        const formData = new FormData();
+        formData.append('hall_image', hallFile);
+        formData.append('product_image', productFile);
+        formData.append('product_width', width);
+        formData.append('product_depth', depth);
+        formData.append('product_height', height);
+        formData.append('dimension_unit', unit);
+        formData.append('placement', newPlacement);
+        if (newInstructions) formData.append('instructions', newInstructions);
+
+        response = await fetch('/api/visualize', {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        response = await fetch(`/api/visualize/${currentVisualization.id}/regenerate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            placement: newPlacement,
+            instructions: newInstructions,
+          }),
+        });
+      }
 
       const data = await response.json();
 
@@ -212,6 +231,8 @@ export default function Home() {
         {currentVisualization && currentVisualization.status === 'COMPLETED' ? (
           <ResultViewer
             visualization={currentVisualization}
+            originalPreview={hallPreview}
+            productPreview={productPreview}
             onRegenerate={handleRegenerate}
             onStartNew={handleStartNew}
             isRegenerating={isRegenerating}
