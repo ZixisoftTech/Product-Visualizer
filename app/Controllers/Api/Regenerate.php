@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\VisualizationModel;
 use App\Libraries\ImageProcessor;
 use App\Libraries\OpenAIService;
+use App\Libraries\StorageService;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class Regenerate extends BaseController
@@ -33,8 +34,21 @@ class Regenerate extends BaseController
         $newPlacement = (string) ($this->request->getPost('placement') ?: ($jsonData['placement'] ?? $record['placement']));
         $newInstructions = (string) ($this->request->getPost('instructions') ?: ($jsonData['instructions'] ?? $record['instructions'] ?? ''));
 
-        $hallAbsPath = FCPATH . $record['hall_image_path'];
-        $prodAbsPath = FCPATH . $record['product_image_path'];
+        $hallsDir = StorageService::getUploadDir('halls');
+        $productsDir = StorageService::getUploadDir('products');
+
+        $hallFileName = basename($record['hall_image_path']);
+        $prodFileName = basename($record['product_image_path']);
+
+        $hallAbsPath = $hallsDir . '/' . $hallFileName;
+        $prodAbsPath = $productsDir . '/' . $prodFileName;
+
+        if (!file_exists($hallAbsPath)) {
+            $hallAbsPath = FCPATH . $record['hall_image_path'];
+        }
+        if (!file_exists($prodAbsPath)) {
+            $prodAbsPath = FCPATH . $record['product_image_path'];
+        }
 
         if (!file_exists($hallAbsPath) || !file_exists($prodAbsPath)) {
             return $this->response->setStatusCode(400)->setJSON([
@@ -44,8 +58,9 @@ class Regenerate extends BaseController
         }
 
         $genFileName = 'gen_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.png';
+        $genDir = StorageService::getUploadDir('generated');
+        $genAbsPath = $genDir . '/' . $genFileName;
         $genRelPath = 'uploads/generated/' . $genFileName;
-        $genAbsPath = FCPATH . $genRelPath;
 
         $metadata = array_merge($record, [
             'placement'    => $newPlacement,

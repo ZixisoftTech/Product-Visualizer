@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\VisualizationModel;
 use App\Libraries\ImageProcessor;
 use App\Libraries\OpenAIService;
+use App\Libraries\StorageService;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class Visualize extends BaseController
@@ -62,21 +63,24 @@ class Visualize extends BaseController
             ]);
         }
 
-        // 2. Save Uploaded Images to public/uploads
+        // 2. Save Uploaded Images
         $hallExt = $hallImage->getClientExtension() ?: 'jpg';
         $prodExt = $productImage->getClientExtension() ?: 'png';
 
         $hallFileName = 'hall_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $hallExt;
         $prodFileName = 'prod_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $prodExt;
 
+        $hallsDir = StorageService::getUploadDir('halls');
+        $productsDir = StorageService::getUploadDir('products');
+
+        $hallAbsPath = $hallsDir . '/' . $hallFileName;
+        $prodAbsPath = $productsDir . '/' . $prodFileName;
+
+        $hallImage->move($hallsDir, $hallFileName);
+        $productImage->move($productsDir, $prodFileName);
+
         $hallRelPath = 'uploads/halls/' . $hallFileName;
         $prodRelPath = 'uploads/products/' . $prodFileName;
-
-        $hallAbsPath = FCPATH . $hallRelPath;
-        $prodAbsPath = FCPATH . $prodRelPath;
-
-        $hallImage->move(FCPATH . 'uploads/halls', $hallFileName);
-        $productImage->move(FCPATH . 'uploads/products', $prodFileName);
 
         // 3. Prepare Metadata & Create Record
         $visualizationId = sprintf(
@@ -110,8 +114,9 @@ class Visualize extends BaseController
 
         // 4. Generate Visualization (OpenAI API with photorealistic GD composite fallback)
         $genFileName = 'gen_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.png';
+        $genDir = StorageService::getUploadDir('generated');
+        $genAbsPath = $genDir . '/' . $genFileName;
         $genRelPath = 'uploads/generated/' . $genFileName;
-        $genAbsPath = FCPATH . $genRelPath;
 
         $openAI = new OpenAIService();
         $aiResult = $openAI->generateVisualization($hallAbsPath, $prodAbsPath, $genAbsPath, $recordData);
