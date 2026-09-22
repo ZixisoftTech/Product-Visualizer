@@ -1,8 +1,64 @@
 /**
  * Rajgarhwala AI Visualizer Frontend Controller
+ * Fully optimized for Mobile Browsers & Native Mobile WebViews
+ * (Android WebView, iOS WKWebView, Flutter WebView, React Native WebView)
  */
 document.addEventListener('DOMContentLoaded', () => {
-  // Elements
+  // 1. Cross-Platform Native Bridge Helper
+  function notifyNativeApp(eventType, payload = {}) {
+    const messageObj = {
+      event: eventType,
+      data: payload,
+      timestamp: Date.now(),
+    };
+    const jsonStr = JSON.stringify(messageObj);
+
+    // React Native WebView
+    if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+      try { window.ReactNativeWebView.postMessage(jsonStr); } catch (e) { console.warn(e); }
+    }
+
+    // Android WebView JavascriptInterface
+    if (window.AndroidBridge) {
+      if (typeof window.AndroidBridge[eventType] === 'function') {
+        try { window.AndroidBridge[eventType](jsonStr); } catch (e) { console.warn(e); }
+      } else if (typeof window.AndroidBridge.postMessage === 'function') {
+        try { window.AndroidBridge.postMessage(jsonStr); } catch (e) { console.warn(e); }
+      }
+    }
+
+    // iOS WKScriptMessageHandler
+    if (window.webkit && window.webkit.messageHandlers) {
+      if (window.webkit.messageHandlers[eventType]) {
+        try { window.webkit.messageHandlers[eventType].postMessage(messageObj); } catch (e) { console.warn(e); }
+      } else if (window.webkit.messageHandlers.nativeApp) {
+        try { window.webkit.messageHandlers.nativeApp.postMessage(messageObj); } catch (e) { console.warn(e); }
+      }
+    }
+
+    // Flutter WebView (flutter_inappwebview or custom channel)
+    if (window.FlutterBridge && typeof window.FlutterBridge.postMessage === 'function') {
+      try { window.FlutterBridge.postMessage(jsonStr); } catch (e) { console.warn(e); }
+    }
+  }
+
+  // 2. Detect WebView Mode from URL or User Agent
+  const urlParams = new URLSearchParams(window.location.search);
+  const isWebViewParam = urlParams.get('webview') === '1' || urlParams.get('webview') === 'true';
+  const isAppParam = urlParams.get('app') === '1' || urlParams.get('app') === 'true';
+  const hideHeaderParam = urlParams.get('hide_header') === '1' || urlParams.get('hide_header') === 'true';
+  const isNativeBridgePresent = !!(window.ReactNativeWebView || window.AndroidBridge || window.webkit?.messageHandlers || window.FlutterBridge);
+
+  if (isWebViewParam || isAppParam || isNativeBridgePresent) {
+    document.body.classList.add('is-webview');
+  }
+  if (hideHeaderParam) {
+    document.body.classList.add('hide-header');
+  }
+
+  notifyNativeApp('onAppReady', { url: window.location.href });
+
+  // DOM Elements
   const roomFileInput = document.getElementById('roomFileInput');
   const roomCameraInput = document.getElementById('roomCameraInput');
   const prodFileInput = document.getElementById('prodFileInput');
@@ -39,12 +95,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const visualizerFormCard = document.getElementById('visualizerFormCard');
   const resultCard = document.getElementById('resultCard');
   const startNewBtn = document.getElementById('startNewBtn');
+  const headerResetBtn = document.getElementById('headerResetBtn');
 
   // Slider elements
   const sliderBeforeImg = document.getElementById('sliderBeforeImg');
   const sliderAfterImg = document.getElementById('sliderAfterImg');
   const fullResLink = document.getElementById('fullResLink');
   const downloadLink = document.getElementById('downloadLink');
+  const shareBtn = document.getElementById('shareBtn');
   const resultSummaryText = document.getElementById('resultSummaryText');
 
   // Regeneration elements
@@ -89,20 +147,23 @@ document.addEventListener('DOMContentLoaded', () => {
     roomPreviewBox.classList.remove('d-none');
     hideError();
     validateFormState();
+    notifyNativeApp('onRoomPhotoSelected', { name: file.name, size: file.size });
   }
 
-  roomFileInput.addEventListener('change', (e) => handleRoomSelect(e.target.files[0]));
-  roomCameraInput.addEventListener('change', (e) => handleRoomSelect(e.target.files[0]));
+  if (roomFileInput) roomFileInput.addEventListener('change', (e) => handleRoomSelect(e.target.files[0]));
+  if (roomCameraInput) roomCameraInput.addEventListener('change', (e) => handleRoomSelect(e.target.files[0]));
 
-  removeRoomBtn.addEventListener('click', () => {
+  function resetRoom() {
     currentRoomFile = null;
-    roomFileInput.value = '';
-    roomCameraInput.value = '';
+    if (roomFileInput) roomFileInput.value = '';
+    if (roomCameraInput) roomCameraInput.value = '';
     roomPreviewImg.src = '';
     roomPreviewBox.classList.add('d-none');
     roomDropzone.classList.remove('d-none');
     validateFormState();
-  });
+  }
+
+  if (removeRoomBtn) removeRoomBtn.addEventListener('click', resetRoom);
 
   // Product File Selection
   function handleProdSelect(file) {
@@ -114,35 +175,38 @@ document.addEventListener('DOMContentLoaded', () => {
     prodPreviewBox.classList.remove('d-none');
     hideError();
     validateFormState();
+    notifyNativeApp('onProductPhotoSelected', { name: file.name, size: file.size });
   }
 
-  prodFileInput.addEventListener('change', (e) => handleProdSelect(e.target.files[0]));
-  prodCameraInput.addEventListener('change', (e) => handleProdSelect(e.target.files[0]));
+  if (prodFileInput) prodFileInput.addEventListener('change', (e) => handleProdSelect(e.target.files[0]));
+  if (prodCameraInput) prodCameraInput.addEventListener('change', (e) => handleProdSelect(e.target.files[0]));
 
-  removeProdBtn.addEventListener('click', () => {
+  function resetProduct() {
     currentProdFile = null;
-    prodFileInput.value = '';
-    prodCameraInput.value = '';
+    if (prodFileInput) prodFileInput.value = '';
+    if (prodCameraInput) prodCameraInput.value = '';
     prodPreviewImg.src = '';
     prodPreviewBox.classList.add('d-none');
     prodDropzone.classList.remove('d-none');
     validateFormState();
-  });
+  }
+
+  if (removeProdBtn) removeProdBtn.addEventListener('click', resetProduct);
 
   // Dimension input listeners
   [widthInput, depthInput, heightInput].forEach((input) => {
-    input.addEventListener('input', validateFormState);
+    if (input) input.addEventListener('input', validateFormState);
   });
 
   function validateFormState() {
-    const w = parseFloat(widthInput.value);
-    const d = parseFloat(depthInput.value);
-    const h = parseFloat(heightInput.value);
+    const w = parseFloat(widthInput?.value);
+    const d = parseFloat(depthInput?.value);
+    const h = parseFloat(heightInput?.value);
 
     const hasRoom = !!currentRoomFile;
     const hasProd = !!currentProdFile;
     const hasDims = !isNaN(w) && w > 0 && !isNaN(d) && d > 0 && !isNaN(h) && h > 0;
-    const hasPlacement = !!placementHiddenInput.value;
+    const hasPlacement = !!placementHiddenInput?.value;
 
     const missing = [];
     if (!hasRoom) missing.push('Customer Room');
@@ -151,27 +215,47 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!hasPlacement) missing.push('Placement');
 
     const isValid = hasRoom && hasProd && hasDims && hasPlacement;
-    generateBtn.disabled = !isValid || isSubmitting;
+    if (generateBtn) generateBtn.disabled = !isValid || isSubmitting;
 
     if (!isValid && missing.length > 0) {
-      missingRequirementsText.textContent = `Please provide: ${missing.join(', ')} to generate`;
-      missingRequirementsText.classList.remove('d-none');
+      if (missingRequirementsText) {
+        missingRequirementsText.textContent = `Please provide: ${missing.join(', ')} to generate`;
+        missingRequirementsText.classList.remove('d-none');
+      }
     } else {
-      missingRequirementsText.classList.add('d-none');
+      if (missingRequirementsText) missingRequirementsText.classList.add('d-none');
     }
 
     return isValid;
   }
 
   function showError(msg) {
-    errorMessage.textContent = msg;
-    errorAlert.classList.remove('d-none');
+    if (errorMessage) errorMessage.textContent = msg;
+    if (errorAlert) errorAlert.classList.remove('d-none');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    notifyNativeApp('onVisualizationError', { error: msg });
   }
 
   function hideError() {
-    errorAlert.classList.add('d-none');
+    if (errorAlert) errorAlert.classList.add('d-none');
   }
+
+  // Form Reset
+  function resetAll() {
+    resetRoom();
+    resetProduct();
+    if (instructionsInput) instructionsInput.value = '';
+    if (charCounter) charCounter.textContent = '0';
+    currentVisualization = null;
+    hideError();
+    resultCard.classList.add('d-none');
+    visualizerFormCard.classList.remove('d-none');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    notifyNativeApp('onReset');
+  }
+
+  if (headerResetBtn) headerResetBtn.addEventListener('click', resetAll);
+  if (startNewBtn) startNewBtn.addEventListener('click', resetAll);
 
   // Form Submit Handler
   generateBtn.addEventListener('click', async () => {
@@ -180,8 +264,10 @@ document.addEventListener('DOMContentLoaded', () => {
     isSubmitting = true;
     generateBtn.disabled = true;
     btnSpinner.classList.remove('d-none');
-    btnText.textContent = 'Processing with AI & Placing Product...';
+    btnText.textContent = 'Placing in Customer Room...';
     hideError();
+
+    notifyNativeApp('onVisualizationStart');
 
     try {
       // 1. Client-side compress images (room -> JPEG, product -> transparent PNG)
@@ -215,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       currentVisualization = data.visualization;
       displayVisualization(data.visualization);
+      notifyNativeApp('onVisualizationComplete', data.visualization);
     } catch (err) {
       console.error(err);
       showError(err.message || 'An unexpected error occurred during generation.');
@@ -234,11 +321,55 @@ document.addEventListener('DOMContentLoaded', () => {
     sliderAfterImg.src = generatedSrc;
     sliderBeforeImg.src = roomSrc;
     fullResLink.href = generatedSrc;
-    
+
     downloadLink.onclick = (e) => {
       e.preventDefault();
       downloadAsPng(generatedSrc, `rajgarhwala_${vis.id || Date.now()}.png`);
     };
+
+    // Native & Web Share Support
+    if (shareBtn) {
+      shareBtn.onclick = async (e) => {
+        e.preventDefault();
+        notifyNativeApp('onShareRequest', {
+          image_data: generatedSrc,
+          title: 'Rajgarhwala Furniture Room Visualization',
+        });
+
+        // If Web Share API is available (iOS Safari, Android Chrome, WebView with WebShare)
+        if (navigator.share) {
+          try {
+            // Convert data URL to Blob File for native share sheet
+            const res = await fetch(generatedSrc);
+            const blob = await res.blob();
+            const file = new File([blob], `rajgarhwala_visualization.png`, { type: 'image/png' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: 'Rajgarhwala AI Room Visualization',
+                text: `Here is how the showroom furniture looks placed in your actual room!`,
+                files: [file],
+              });
+              return;
+            } else {
+              await navigator.share({
+                title: 'Rajgarhwala AI Room Visualization',
+                text: `Here is how the showroom furniture looks placed in your room!`,
+                url: window.location.href,
+              });
+              return;
+            }
+          } catch (shareErr) {
+            if (shareErr.name !== 'AbortError') {
+              console.warn('[Share error]', shareErr);
+            }
+          }
+        }
+
+        // Fallback: download the image
+        downloadAsPng(generatedSrc, `rajgarhwala_${vis.id || Date.now()}.png`);
+      };
+    }
 
     resultSummaryText.textContent = `${vis.product_width}×${vis.product_depth}×${vis.product_height} ${vis.dimension_unit} • ${vis.placement}`;
 
@@ -248,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     visualizerFormCard.classList.add('d-none');
     resultCard.classList.remove('d-none');
-    window.scrollTo({ top: resultCard.offsetTop - 30, behavior: 'smooth' });
+    window.scrollTo({ top: resultCard.offsetTop - 20, behavior: 'smooth' });
   }
 
   function downloadAsPng(imgSrc, fileName) {
@@ -271,13 +402,6 @@ document.addEventListener('DOMContentLoaded', () => {
     img.src = imgSrc;
   }
 
-  // Start New Visual
-  startNewBtn.addEventListener('click', () => {
-    resultCard.classList.add('d-none');
-    visualizerFormCard.classList.remove('d-none');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
-
   // Handle Regeneration
   regenBtn.addEventListener('click', async () => {
     if (!currentVisualization || isSubmitting) return;
@@ -288,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
     isSubmitting = true;
     regenBtn.disabled = true;
     regenSpinner.classList.remove('d-none');
+    notifyNativeApp('onVisualizationStart');
 
     try {
       if (currentRoomFile && currentProdFile) {
@@ -321,6 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentVisualization = data.visualization;
         displayVisualization(data.visualization);
+        notifyNativeApp('onVisualizationComplete', data.visualization);
       } else {
         const res = await fetch(`/api/visualize/${currentVisualization.id}/regenerate`, {
           method: 'POST',
@@ -342,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentVisualization = data.visualization;
         displayVisualization(data.visualization);
+        notifyNativeApp('onVisualizationComplete', data.visualization);
       }
     } catch (err) {
       alert('Regeneration Error: ' + err.message);

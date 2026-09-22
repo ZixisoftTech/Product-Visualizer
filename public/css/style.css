@@ -6,6 +6,13 @@
   --amber-hover: #b45309;
   --surface-bg: #f8fafc;
   --card-border: rgba(226, 232, 240, 0.9);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 body {
@@ -13,6 +20,20 @@ body {
   color: #1e293b;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(var(--safe-bottom) + 1rem);
+}
+
+/* WebView specific styling */
+body.is-webview {
+  background-color: #fcfbf9;
+}
+
+body.hide-header header {
+  display: none !important;
 }
 
 /* Header & Brand */
@@ -22,12 +43,18 @@ body {
   letter-spacing: -0.02em;
 }
 
+header.sticky-top {
+  padding-top: max(0.75rem, var(--safe-top)) !important;
+  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
 .card-custom {
   background: #ffffff;
   border-radius: 1.25rem;
   border: 1px solid var(--card-border);
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-  transition: all 0.2s ease-in-out;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .card-custom:hover {
@@ -39,13 +66,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 50%;
   background-color: rgba(217, 119, 6, 0.12);
   color: var(--warm-amber);
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  flex-shrink: 0;
 }
 
 /* Upload dropzones */
@@ -53,13 +81,15 @@ body {
   border: 2px dashed #cbd5e1;
   border-radius: 1rem;
   background: #f8fafc;
-  padding: 1.75rem 1rem;
+  padding: 1.5rem 1rem;
   text-align: center;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
+.upload-dropzone:active,
 .upload-dropzone:hover {
   background: #f1f5f9;
+  border-color: var(--warm-amber);
 }
 
 .preview-container {
@@ -82,8 +112,8 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(to top, rgba(15, 23, 42, 0.85), transparent);
-  padding: 0.75rem;
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.88), transparent);
+  padding: 0.75rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -97,9 +127,15 @@ body {
   font-weight: 600;
   font-size: 0.875rem;
   border-radius: 0.75rem;
-  padding: 0.6rem 0.5rem;
+  padding: 0.75rem 0.5rem;
+  min-height: 46px;
   transition: all 0.15s ease;
   width: 100%;
+  touch-action: manipulation;
+}
+
+.btn-placement:active {
+  transform: scale(0.97);
 }
 
 .btn-placement:hover {
@@ -111,7 +147,17 @@ body {
   background: var(--primary-stone);
   color: #ffffff;
   border-color: var(--primary-stone);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Touch-friendly buttons */
+.btn {
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 
 /* Before / After Slider */
@@ -123,6 +169,7 @@ body {
   overflow: hidden;
   background: #0f172a;
   user-select: none;
+  -webkit-user-select: none;
   touch-action: none;
 }
 
@@ -138,6 +185,8 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  user-select: none;
+  pointer-events: none;
 }
 
 .slider-clip-container {
@@ -148,6 +197,7 @@ body {
   overflow: hidden;
   width: 50%;
   z-index: 10;
+  pointer-events: none;
 }
 
 .slider-img-before {
@@ -157,6 +207,8 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  user-select: none;
+  pointer-events: none;
 }
 
 .slider-divider {
@@ -164,9 +216,9 @@ body {
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 2px;
+  width: 3px;
   background: #ffffff;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.7);
   z-index: 20;
   pointer-events: none;
 }
@@ -176,15 +228,16 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #0f172a;
+  font-size: 1rem;
 }
 
 .slider-range-input {
@@ -196,6 +249,7 @@ body {
   cursor: ew-resize;
   z-index: 30;
   margin: 0;
+  touch-action: none;
 }
 
 /* Badge labels */
@@ -229,7 +283,37 @@ body {
 
 /* Unit selector */
 .unit-toggle .btn {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.8rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
   font-weight: 600;
+  min-height: 40px;
+}
+
+/* Sticky Action Bar for Mobile & WebView */
+.sticky-mobile-cta {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  padding: 0.75rem 1rem calc(var(--safe-bottom) + 0.75rem) 1rem;
+  z-index: 1040;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* Mobile optimizations */
+@media (max-width: 576px) {
+  .card-custom {
+    padding: 1.25rem !important;
+    border-radius: 1rem;
+  }
+  .upload-dropzone {
+    padding: 1.25rem 0.75rem;
+  }
+  .btn-lg {
+    font-size: 1rem;
+    padding: 0.85rem 1rem;
+  }
 }
