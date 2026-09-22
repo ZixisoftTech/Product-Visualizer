@@ -290,25 +290,59 @@ document.addEventListener('DOMContentLoaded', () => {
     regenSpinner.classList.remove('d-none');
 
     try {
-      const res = await fetch(`/api/visualize/${currentVisualization.id}/regenerate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          placement: newPlacement,
-          instructions: newInstructions,
-        }),
-      });
+      if (currentRoomFile && currentProdFile) {
+        const [readyRoom, readyProd] = await Promise.all([
+          compressImageForUpload(currentRoomFile, 1600, false),
+          compressImageForUpload(currentProdFile, 1600, true),
+        ]);
 
-      const data = await res.json().catch(() => null);
+        const selectedUnit = document.querySelector('input[name="dimension_unit"]:checked')?.value || 'cm';
 
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Regeneration failed.');
+        const formData = new FormData();
+        formData.append('hall_image', readyRoom, 'customer_room.jpg');
+        formData.append('product_image', readyProd, 'showroom_product.png');
+        formData.append('product_width', widthInput.value);
+        formData.append('product_depth', depthInput.value);
+        formData.append('product_height', heightInput.value);
+        formData.append('dimension_unit', selectedUnit);
+        formData.append('placement', newPlacement);
+        formData.append('instructions', newInstructions);
+
+        const res = await fetch('/api/visualize', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data?.success) {
+          throw new Error(data?.error || `Server responded with error (${res.status})`);
+        }
+
+        currentVisualization = data.visualization;
+        displayVisualization(data.visualization);
+      } else {
+        const res = await fetch(`/api/visualize/${currentVisualization.id}/regenerate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            placement: newPlacement,
+            instructions: newInstructions,
+            ...currentVisualization,
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data?.success) {
+          throw new Error(data?.error || 'Regeneration failed.');
+        }
+
+        currentVisualization = data.visualization;
+        displayVisualization(data.visualization);
       }
-
-      currentVisualization = data.visualization;
-      displayVisualization(data.visualization);
     } catch (err) {
       alert('Regeneration Error: ' + err.message);
     } finally {
