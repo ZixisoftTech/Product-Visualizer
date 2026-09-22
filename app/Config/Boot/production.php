@@ -2,16 +2,9 @@
 
 /*
  |--------------------------------------------------------------------------
- | ERROR DISPLAY
- |--------------------------------------------------------------------------
- | Enable full error reporting to diagnose serverless 500 exceptions
- */
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
-
-/*
- |--------------------------------------------------------------------------
- | DEBUG MODE
+ | ERROR DISPLAY & LOGGING
  |--------------------------------------------------------------------------
  */
-defined('CI_DEBUG') || define('CI_DEBUG', true);
+error_reporting(E_ALL & ~E_DEPRECATED);
+ini_set('display_errors', '0');
+defined('CI_DEBUG') || define('CI_DEBUG', false);
