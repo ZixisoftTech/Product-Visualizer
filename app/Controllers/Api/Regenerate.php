@@ -86,7 +86,10 @@ class Regenerate extends BaseController
             );
 
             if ($compositeOk && file_exists($genAbsPath)) {
-                $imageData = 'data:image/png;base64,' . base64_encode(file_get_contents($genAbsPath));
+                $rawContent = file_get_contents($genAbsPath);
+                $isSvg = str_starts_with(trim($rawContent), '<?xml') || str_starts_with(trim($rawContent), '<svg');
+                $mime = $isSvg ? 'image/svg+xml' : 'image/png';
+                $imageData = 'data:' . $mime . ';base64,' . base64_encode($rawContent);
             }
         }
 

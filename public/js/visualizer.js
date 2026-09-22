@@ -184,17 +184,17 @@ document.addEventListener('DOMContentLoaded', () => {
     hideError();
 
     try {
-      // 1. Client-side compress images
+      // 1. Client-side compress images (room -> JPEG, product -> transparent PNG)
       const [readyRoom, readyProd] = await Promise.all([
-        compressImageForUpload(currentRoomFile),
-        compressImageForUpload(currentProdFile),
+        compressImageForUpload(currentRoomFile, 1600, false),
+        compressImageForUpload(currentProdFile, 1600, true),
       ]);
 
       const selectedUnit = document.querySelector('input[name="dimension_unit"]:checked')?.value || 'cm';
 
       const formData = new FormData();
       formData.append('hall_image', readyRoom, 'customer_room.jpg');
-      formData.append('product_image', readyProd, 'showroom_product.jpg');
+      formData.append('product_image', readyProd, 'showroom_product.png');
       formData.append('product_width', widthInput.value);
       formData.append('product_depth', depthInput.value);
       formData.append('product_height', heightInput.value);
@@ -234,7 +234,11 @@ document.addEventListener('DOMContentLoaded', () => {
     sliderAfterImg.src = generatedSrc;
     sliderBeforeImg.src = roomSrc;
     fullResLink.href = generatedSrc;
-    downloadLink.href = generatedSrc;
+    
+    downloadLink.onclick = (e) => {
+      e.preventDefault();
+      downloadAsPng(generatedSrc, `rajgarhwala_${vis.id || Date.now()}.png`);
+    };
 
     resultSummaryText.textContent = `${vis.product_width}×${vis.product_depth}×${vis.product_height} ${vis.dimension_unit} • ${vis.placement}`;
 
@@ -245,6 +249,26 @@ document.addEventListener('DOMContentLoaded', () => {
     visualizerFormCard.classList.add('d-none');
     resultCard.classList.remove('d-none');
     window.scrollTo({ top: resultCard.offsetTop - 30, behavior: 'smooth' });
+  }
+
+  function downloadAsPng(imgSrc, fileName) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || 1200;
+      canvas.height = img.naturalHeight || 900;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.download = fileName;
+      a.href = dataUrl;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    };
+    img.src = imgSrc;
   }
 
   // Start New Visual
