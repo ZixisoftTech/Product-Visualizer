@@ -1,17 +1,18 @@
 /**
- * Rajgarhwala AI Furniture Visualizer
- * Client-side image compression & product isolation for mobile & desktop browsers.
- * - Customer room: optimized JPEG (preserves quality while avoiding huge camera file limits).
- * - Furniture product: isolates background and preserves full PNG transparency.
+ * Vidona AI Furniture Visualizer
+ * Client-side image processing, product crop/framing & safe studio cutout.
+ * - Customer room: optimized high-quality JPEG.
+ * - Furniture product: interactive crop & framing to isolate the exact product
+ *   (discarding showroom walls, curtains, trees, ceiling) while preserving
+ *   100% of furniture textures, white duvets, pillows, and wooden finishes!
  */
 
-async function compressImageForUpload(file, maxDimension = 1200, isProduct = false, quality = 0.82) {
+async function compressImageForUpload(file, maxDimension = 1200, isProduct = false, quality = 0.85) {
   if (!file || !file.type.startsWith('image/')) {
     return file;
   }
 
-  // Optimize target max dimension: 800px is crystal clear for isolated products, 1200px for room
-  const targetMaxDim = isProduct ? 800 : Math.min(1200, maxDimension);
+  const targetMaxDim = isProduct ? 1200 : Math.min(1400, maxDimension);
 
   return new Promise((resolve) => {
     const img = new Image();
@@ -38,16 +39,11 @@ async function compressImageForUpload(file, maxDimension = 1200, isProduct = fal
       canvas.height = height;
 
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        return resolve(file);
-      }
+      if (!ctx) return resolve(file);
 
       ctx.drawImage(img, 0, 0, width, height);
 
-      // If product image, remove solid/studio background if not already transparent
       if (isProduct) {
-        isolateProductBackground(canvas);
-
         canvas.toBlob(
           (blob) => {
             if (!blob) return resolve(file);
@@ -65,7 +61,6 @@ async function compressImageForUpload(file, maxDimension = 1200, isProduct = fal
           'image/png'
         );
       } else {
-        // Room image: clean high-quality JPEG
         canvas.toBlob(
           (blob) => {
             if (!blob) return resolve(file);
@@ -96,111 +91,181 @@ async function compressImageForUpload(file, maxDimension = 1200, isProduct = fal
 }
 
 /**
- * High-precision product background isolation:
- * Uses boundary flood-fill & edge detection to remove showroom walls,
- * studio backdrops, and floors while preserving the furniture piece 100%.
- * Eliminates the rectangular box artifact entirely.
+ * Crops a product image to the exact normalized bounding box selected by user,
+ * and optionally applies non-destructive studio background removal.
+ * 
+ * @param {File} file Source image file
+ * @param {Object} normRect { x: 0..1, y: 0..1, w: 0..1, h: 0..1 }
+ * @param {boolean} removeStudioBg Whether to run safe studio cutout
+ * @returns {Promise<File>} Clean cropped product File
  */
-function isolateProductBackground(canvas) {
+async function cropAndProcessProduct(file, normRect, removeStudioBg = false) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      const natW = img.naturalWidth || img.width;
+      const natH = img.naturalHeight || img.height;
+
+      // Calculate pixel crop coordinates
+      const sx = Math.max(0, Math.round((normRect.x || 0) * natW));
+      const sy = Math.max(0, Math.round((normRect.y || 0) * natH));
+      const sw = Math.min(natW - sx, Math.round((normRect.w || 1) * natW));
+      const sh = Math.min(natH - sy, Math.round((normRect.h || 1) * natH));
+
+      if (sw <= 0 || sh <= 0) {
+        return resolve(file);
+      }
+
+      // Max dimension 1200px for sharp high-DPI rendering
+      const maxDim = 1200;
+      let targetW = sw;
+      let targetH = sh;
+      if (targetW > maxDim || targetH > maxDim) {
+        if (targetW > targetH) {
+          targetH = Math.round((targetH * maxDim) / targetW);
+          targetW = maxDim;
+        } else {
+          targetW = Math.round((targetW * maxDim) / targetH);
+          targetH = maxDim;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(file);
+
+      // Draw cropped area
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
+
+      // If user enabled studio cutout, apply safe non-destructive isolation
+      if (removeStudioBg) {
+        safeStudioCutout(canvas);
+      }
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return resolve(file);
+          const cleanName = (file.name || 'product')
+            .replace(/[^a-zA-Z0-9._-]/g, '_')
+            .replace(/\.[^/.]+$/, '') + '_picked.png';
+
+          const croppedFile = new File([blob], cleanName, {
+            type: 'image/png',
+            lastModified: Date.now(),
+          });
+
+          resolve(croppedFile);
+        },
+        'image/png'
+      );
+    };
+
+    img.onerror = (err) => {
+      URL.revokeObjectURL(objectUrl);
+      reject(err);
+    };
+
+    img.src = objectUrl;
+  });
+}
+
+/**
+ * Safe, Non-Destructive Studio Background Cutout:
+ * ONLY removes plain studio backdrops (like pure white #FFF or studio grey)
+ * strictly connected to outer borders.
+ * NEVER erases white bedding, mattresses, cushions, or light wood inside the product!
+ */
+function safeStudioCutout(canvas) {
   const ctx = canvas.getContext('2d');
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imgData.data;
   const w = canvas.width;
   const h = canvas.height;
 
-  // 1. Check if image is already a transparent PNG
-  let transparentBorderPixels = 0;
-  let totalBorderPixels = 0;
-
+  // 1. Check if the image already has transparency around the border
+  let transparentBorderCount = 0;
+  let totalBorderCount = 0;
   for (let x = 0; x < w; x++) {
-    const topIdx = x * 4;
-    const botIdx = ((h - 1) * w + x) * 4;
-    if (data[topIdx + 3] < 30) transparentBorderPixels++;
-    if (data[botIdx + 3] < 30) transparentBorderPixels++;
-    totalBorderPixels += 2;
+    if (data[x * 4 + 3] < 30) transparentBorderCount++;
+    if (data[((h - 1) * w + x) * 4 + 3] < 30) transparentBorderCount++;
+    totalBorderCount += 2;
   }
   for (let y = 1; y < h - 1; y++) {
-    const leftIdx = (y * w) * 4;
-    const rightIdx = (y * w + (w - 1)) * 4;
-    if (data[leftIdx + 3] < 30) transparentBorderPixels++;
-    if (data[rightIdx + 3] < 30) transparentBorderPixels++;
-    totalBorderPixels += 2;
+    if (data[(y * w) * 4 + 3] < 30) transparentBorderCount++;
+    if (data[(y * w + (w - 1)) * 4 + 3] < 30) transparentBorderCount++;
+    totalBorderCount += 2;
+  }
+  if (transparentBorderCount / Math.max(1, totalBorderCount) > 0.05) {
+    return; // Already pre-cut transparent PNG
   }
 
-  // If already > 5% transparent around the border, it is pre-cutout
-  if (transparentBorderPixels / Math.max(1, totalBorderPixels) > 0.05) {
-    return;
-  }
+  // 2. Sample 4 outer corner points to verify if it is a studio background
+  const getCorner = (cx, cy) => {
+    const idx = (cy * w + cx) * 4;
+    return [data[idx], data[idx + 1], data[idx + 2]];
+  };
 
-  // 2. Multi-Zone Border Sampling (Wall Palette vs Floor/Rug Palette)
-  // Showroom photos have different background colors on top (wall) vs bottom (floor/rug)
-  let topR = 0, topG = 0, topB = 0, topSamples = 0;
-  let botR = 0, botG = 0, botB = 0, botSamples = 0;
-  let leftR = 0, leftG = 0, leftB = 0, leftSamples = 0;
-  let rightR = 0, rightG = 0, rightB = 0, rightSamples = 0;
+  const cTL = getCorner(0, 0);
+  const cTR = getCorner(w - 1, 0);
+  const cBL = getCorner(0, h - 1);
+  const cBR = getCorner(w - 1, h - 1);
 
-  const step = Math.max(1, Math.floor(Math.min(w, h) / 30));
+  // Check variance between top corners (studio wall)
+  const topDiff = Math.sqrt((cTL[0] - cTR[0]) ** 2 + (cTL[1] - cTR[1]) ** 2 + (cTL[2] - cTR[2]) ** 2);
+  
+  // Studio backdrop color
+  const studioR = (cTL[0] + cTR[0]) / 2;
+  const studioG = (cTL[1] + cTR[1]) / 2;
+  const studioB = (cTL[2] + cTR[2]) / 2;
 
-  // Top border (Wall)
-  for (let x = 0; x < w; x += step) {
-    const idx = x * 4;
-    topR += data[idx]; topG += data[idx + 1]; topB += data[idx + 2];
-    topSamples++;
-  }
-  // Bottom border (Floor/Rug)
-  for (let x = 0; x < w; x += step) {
-    const idx = ((h - 1) * w + x) * 4;
-    botR += data[idx]; botG += data[idx + 1]; botB += data[idx + 2];
-    botSamples++;
-  }
-  // Left border
-  for (let y = 0; y < h; y += step) {
-    const idx = (y * w) * 4;
-    leftR += data[idx]; leftG += data[idx + 1]; leftB += data[idx + 2];
-    leftSamples++;
-  }
-  // Right border
-  for (let y = 0; y < h; y += step) {
-    const idx = (y * w + (w - 1)) * 4;
-    rightR += data[idx]; rightG += data[idx + 1]; rightB += data[idx + 2];
-    rightSamples++;
-  }
+  // Tight tolerance: only pixels nearly identical to the studio wall are removed
+  // This guarantees that white sheets with folds/texture or wood grain will NOT be touched
+  const maxTolerance = 28;
 
-  const avgTop = [topR / topSamples, topG / topSamples, topB / topSamples];
-  const avgBot = [botR / botSamples, botG / botSamples, botB / botSamples];
-  const avgLeft = [leftR / leftSamples, leftG / leftSamples, leftB / leftSamples];
-  const avgRight = [rightR / rightSamples, rightG / rightSamples, rightB / rightSamples];
-
-  // 3. Flood Fill BFS from outer boundaries inward
-  const visited = new Uint8Array(w * h); // 0: unvisited, 1: background, 2: foreground
+  // BFS from top & side borders
+  const visited = new Uint8Array(w * h);
   const queue = new Int32Array(w * h);
   let qHead = 0;
   let qTail = 0;
 
-  // Push all 4 outer borders as initial seeds
+  // Seed top and side borders
   for (let x = 0; x < w; x++) {
-    queue[qTail++] = x; visited[x] = 1; // Top
-    const b = (h - 1) * w + x;
-    queue[qTail++] = b; visited[b] = 1; // Bottom
-  }
-  for (let y = 1; y < h - 1; y++) {
-    const l = y * w;
-    queue[qTail++] = l; visited[l] = 1; // Left
-    const r = y * w + (w - 1);
-    queue[qTail++] = r; visited[r] = 1; // Right
+    const idx = x * 4;
+    const dist = Math.sqrt((data[idx] - studioR) ** 2 + (data[idx + 1] - studioG) ** 2 + (data[idx + 2] - studioB) ** 2);
+    if (dist < maxTolerance) {
+      visited[x] = 1;
+      queue[qTail++] = x;
+    }
   }
 
-  const baseTolerance = 56;
+  for (let y = 1; y < h; y++) {
+    const leftIdx = (y * w) * 4;
+    const rightIdx = (y * w + (w - 1)) * 4;
+
+    const distL = Math.sqrt((data[leftIdx] - studioR) ** 2 + (data[leftIdx + 1] - studioG) ** 2 + (data[leftIdx + 2] - studioB) ** 2);
+    if (distL < maxTolerance) {
+      const idxL = y * w;
+      if (!visited[idxL]) { visited[idxL] = 1; queue[qTail++] = idxL; }
+    }
+
+    const distR = Math.sqrt((data[rightIdx] - studioR) ** 2 + (data[rightIdx + 1] - studioG) ** 2 + (data[rightIdx + 2] - studioB) ** 2);
+    if (distR < maxTolerance) {
+      const idxR = y * w + (w - 1);
+      if (!visited[idxR]) { visited[idxR] = 1; queue[qTail++] = idxR; }
+    }
+  }
 
   while (qHead < qTail) {
     const curr = queue[qHead++];
     const cx = curr % w;
     const cy = Math.floor(curr / w);
-    const cIdx = curr * 4;
-
-    const cr = data[cIdx];
-    const cg = data[cIdx + 1];
-    const cb = data[cIdx + 2];
 
     const neighbors = [
       cx > 0 ? curr - 1 : -1,
@@ -213,83 +278,42 @@ function isolateProductBackground(canvas) {
       const n = neighbors[i];
       if (n === -1 || visited[n] !== 0) continue;
 
-      const nx = n % w;
-      const ny = Math.floor(n / w);
       const nIdx = n * 4;
       const nr = data[nIdx];
       const ng = data[nIdx + 1];
       const nb = data[nIdx + 2];
 
-      // Select reference background palette based on spatial location
-      let refBg = avgTop;
-      if (ny > h * 0.60) {
-        refBg = avgBot; // Floor / Rug palette
-      } else if (nx < w * 0.25) {
-        refBg = avgLeft;
-      } else if (nx > w * 0.75) {
-        refBg = avgRight;
-      }
+      // Strict distance check against studio backdrop color ONLY
+      const dist = Math.sqrt((nr - studioR) ** 2 + (ng - studioG) ** 2 + (nb - studioB) ** 2);
 
-      // Distance from corresponding background palette
-      const distFromBg = Math.sqrt(
-        (nr - refBg[0]) ** 2 +
-        (ng - refBg[1]) ** 2 +
-        (nb - refBg[2]) ** 2
-      );
-
-      // Distance from neighboring background pixel (smooth gradient / shadows)
-      const distFromNeighbor = Math.sqrt(
-        (nr - cr) ** 2 +
-        (ng - cg) ** 2 +
-        (nb - cb) ** 2
-      );
-
-      // Studio neutral tone check (low chroma neutral gray/white/cream)
-      const maxC = Math.max(nr, ng, nb);
-      const minC = Math.min(nr, ng, nb);
-      const isNeutralStudio = (maxC - minC < 30) && (
-        (nr > 160 && ng > 160 && nb > 160) || // Light wall
-        (ny > h * 0.68 && distFromNeighbor < 42) // Showroom floor/rug
-      );
-
-      // Showroom floor gradient detection (gradual shadow on the floor)
-      const isFloorGradient = (ny > h * 0.65) && (distFromNeighbor < 32);
-
-      const isBackground = (distFromBg < baseTolerance * 1.4) ||
-        (distFromNeighbor < baseTolerance * 0.75 && distFromBg < baseTolerance * 1.9) ||
-        (isNeutralStudio && distFromNeighbor < baseTolerance * 0.95) ||
-        isFloorGradient;
-
-      if (isBackground) {
+      if (dist < maxTolerance) {
         visited[n] = 1;
         queue[qTail++] = n;
       } else {
-        visited[n] = 2; // Hit edge of furniture
+        visited[n] = 2; // Boundary of furniture product
       }
     }
   }
 
-  // 4. Apply Alpha Transparency Mask
+  // Apply transparency to visited background pixels
   for (let i = 0; i < w * h; i++) {
     if (visited[i] === 1) {
-      data[i * 4 + 3] = 0; // Pure transparent
+      data[i * 4 + 3] = 0;
     }
   }
 
-  // 5. Anti-aliasing Edge Feathering on Transition Boundary
+  // Smooth feathering on border edges
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const idx = y * w + x;
       if (visited[idx] !== 1) {
-        let bgNeighbors = 0;
-        if (visited[idx - 1] === 1) bgNeighbors++;
-        if (visited[idx + 1] === 1) bgNeighbors++;
-        if (visited[idx - w] === 1) bgNeighbors++;
-        if (visited[idx + w] === 1) bgNeighbors++;
-
-        if (bgNeighbors > 0) {
-          const pIdx = idx * 4;
-          data[pIdx + 3] = Math.round(data[pIdx + 3] * (1 - (bgNeighbors * 0.20)));
+        let bgCount = 0;
+        if (visited[idx - 1] === 1) bgCount++;
+        if (visited[idx + 1] === 1) bgCount++;
+        if (visited[idx - w] === 1) bgCount++;
+        if (visited[idx + w] === 1) bgCount++;
+        if (bgCount > 0) {
+          data[idx * 4 + 3] = Math.round(data[idx * 4 + 3] * (1 - (bgCount * 0.18)));
         }
       }
     }

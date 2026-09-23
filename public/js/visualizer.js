@@ -374,37 +374,332 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function handleProductPhotoSelect(file) {
-    if (!file || products.length >= 3) return;
+  // ==========================================
+  // PRODUCT CROPPER & PICKER MODAL CONTROLLER
+  // ==========================================
+  const pickProductModalEl = document.getElementById('pickProductModal');
+  const pickProductModal = pickProductModalEl ? new bootstrap.Modal(pickProductModalEl) : null;
+  const cropperStage = document.getElementById('cropperStage');
+  const cropperSourceImg = document.getElementById('cropperSourceImg');
+  const cropperBox = document.getElementById('cropperBox');
+  const cropRemoveStudioBgSwitch = document.getElementById('cropRemoveStudioBgSwitch');
+  const cropAspectFree = document.getElementById('cropAspectFree');
+  const cropAspectWide = document.getElementById('cropAspectWide');
+  const cropAspectSquare = document.getElementById('cropAspectSquare');
+  const cropAspectTall = document.getElementById('cropAspectTall');
+  const cropSkipBtn = document.getElementById('cropSkipBtn');
+  const cropConfirmBtn = document.getElementById('cropConfirmBtn');
+
+  let cropperRawFile = null;
+  let editingProductId = null;
+  let cropperObjectUrl = null;
+  let activeAspect = null;
+
+  let box = { x: 0, y: 0, w: 100, h: 100 };
+  let isDragging = false;
+  let dragMode = null;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let initBox = { x: 0, y: 0, w: 0, h: 0 };
+
+  function getImgMetrics() {
+    if (!cropperSourceImg || !cropperStage) return { w: 100, h: 100, left: 0, top: 0 };
+    return {
+      w: cropperSourceImg.clientWidth || 200,
+      h: cropperSourceImg.clientHeight || 200,
+      left: cropperSourceImg.offsetLeft || 0,
+      top: cropperSourceImg.offsetTop || 0,
+    };
+  }
+
+  function applyBoxStyle() {
+    if (!cropperBox) return;
+    cropperBox.style.left = `${Math.round(box.x)}px`;
+    cropperBox.style.top = `${Math.round(box.y)}px`;
+    cropperBox.style.width = `${Math.round(box.w)}px`;
+    cropperBox.style.height = `${Math.round(box.h)}px`;
+  }
+
+  function initCropperBox(ratio = null) {
+    const m = getImgMetrics();
+    if (m.w <= 0 || m.h <= 0) return;
+
+    let targetW = m.w * 0.85;
+    let targetH = m.h * 0.85;
+
+    if (ratio) {
+      if (targetW / targetH > ratio) {
+        targetW = targetH * ratio;
+      } else {
+        targetH = targetW / ratio;
+      }
+    }
+
+    box.w = Math.max(50, Math.min(m.w, targetW));
+    box.h = Math.max(50, Math.min(m.h, targetH));
+    box.x = m.left + (m.w - box.w) / 2;
+    box.y = m.top + (m.h - box.h) / 2;
+    applyBoxStyle();
+  }
+
+  function openProductCropper(file, existingProd = null) {
+    cropperRawFile = file;
+    editingProductId = existingProd ? existingProd.id : null;
+
+    if (cropperObjectUrl) URL.revokeObjectURL(cropperObjectUrl);
+    cropperObjectUrl = URL.createObjectURL(file);
+
+    cropperSourceImg.onload = () => {
+      setTimeout(() => {
+        initCropperBox(activeAspect);
+      }, 60);
+    };
+    cropperSourceImg.src = cropperObjectUrl;
+
+    if (cropRemoveStudioBgSwitch) {
+      cropRemoveStudioBgSwitch.checked = existingProd ? !!existingProd.removeStudioBg : false;
+    }
+
+    pickProductModal?.show();
+  }
+
+  function getClientCoords(e) {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function onDragStart(e) {
+    const handle = e.target.closest('.crop-handle');
+    if (handle) {
+      dragMode = handle.dataset.handle;
+    } else if (e.target.closest('#cropperBox')) {
+      dragMode = 'move';
+    } else {
+      return;
+    }
+
+    e.preventDefault();
+    const coords = getClientCoords(e);
+    isDragging = true;
+    dragStartX = coords.x;
+    dragStartY = coords.y;
+    initBox = { ...box };
+
+    window.addEventListener('mousemove', onDragMove, { passive: false });
+    window.addEventListener('mouseup', onDragEnd);
+    window.addEventListener('touchmove', onDragMove, { passive: false });
+    window.addEventListener('touchend', onDragEnd);
+    window.addEventListener('touchcancel', onDragEnd);
+  }
+
+  function onDragMove(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+
+    const coords = getClientCoords(e);
+    const dx = coords.x - dragStartX;
+    const dy = coords.y - dragStartY;
+    const m = getImgMetrics();
+    const minSize = 40;
+
+    const minX = m.left;
+    const maxX = m.left + m.w;
+    const minY = m.top;
+    const maxY = m.top + m.h;
+
+    if (dragMode === 'move') {
+      let nx = initBox.x + dx;
+      let ny = initBox.y + dy;
+      nx = Math.max(minX, Math.min(maxX - initBox.w, nx));
+      ny = Math.max(minY, Math.min(maxY - initBox.h, ny));
+      box.x = nx;
+      box.y = ny;
+    } else if (dragMode === 'se') {
+      let nw = Math.max(minSize, Math.min(maxX - initBox.x, initBox.w + dx));
+      let nh = Math.max(minSize, Math.min(maxY - initBox.y, initBox.h + dy));
+      if (activeAspect) nh = nw / activeAspect;
+      box.w = nw;
+      box.h = nh;
+    } else if (dragMode === 'sw') {
+      let nx = Math.max(minX, Math.min(initBox.x + initBox.w - minSize, initBox.x + dx));
+      let nw = initBox.w + (initBox.x - nx);
+      let nh = Math.max(minSize, Math.min(maxY - initBox.y, initBox.h + dy));
+      if (activeAspect) nh = nw / activeAspect;
+      box.x = nx;
+      box.w = nw;
+      box.h = nh;
+    } else if (dragMode === 'ne') {
+      let nw = Math.max(minSize, Math.min(maxX - initBox.x, initBox.w + dx));
+      let ny = Math.max(minY, Math.min(initBox.y + initBox.h - minSize, initBox.y + dy));
+      let nh = initBox.h + (initBox.y - ny);
+      if (activeAspect) nw = nh * activeAspect;
+      box.y = ny;
+      box.w = nw;
+      box.h = nh;
+    } else if (dragMode === 'nw') {
+      let nx = Math.max(minX, Math.min(initBox.x + initBox.w - minSize, initBox.x + dx));
+      let ny = Math.max(minY, Math.min(initBox.y + initBox.h - minSize, initBox.y + dy));
+      let nw = initBox.w + (initBox.x - nx);
+      let nh = initBox.h + (initBox.y - ny);
+      if (activeAspect) nw = nh / activeAspect;
+      box.x = nx;
+      box.y = ny;
+      box.w = nw;
+      box.h = nh;
+    } else if (dragMode === 'n') {
+      let ny = Math.max(minY, Math.min(initBox.y + initBox.h - minSize, initBox.y + dy));
+      box.y = ny;
+      box.h = initBox.h + (initBox.y - ny);
+    } else if (dragMode === 's') {
+      box.h = Math.max(minSize, Math.min(maxY - initBox.y, initBox.h + dy));
+    } else if (dragMode === 'w') {
+      let nx = Math.max(minX, Math.min(initBox.x + initBox.w - minSize, initBox.x + dx));
+      box.x = nx;
+      box.w = initBox.w + (initBox.x - nx);
+    } else if (dragMode === 'e') {
+      box.w = Math.max(minSize, Math.min(maxX - initBox.x, initBox.w + dx));
+    }
+
+    applyBoxStyle();
+  }
+
+  function onDragEnd() {
+    isDragging = false;
+    dragMode = null;
+    window.removeEventListener('mousemove', onDragMove);
+    window.removeEventListener('mouseup', onDragEnd);
+    window.removeEventListener('touchmove', onDragMove);
+    window.removeEventListener('touchend', onDragEnd);
+    window.removeEventListener('touchcancel', onDragEnd);
+  }
+
+  if (cropperStage) {
+    cropperStage.addEventListener('mousedown', onDragStart);
+    cropperStage.addEventListener('touchstart', onDragStart, { passive: false });
+  }
+
+  function setAspect(ratio, activeBtn) {
+    activeAspect = ratio;
+    [cropAspectFree, cropAspectWide, cropAspectSquare, cropAspectTall].forEach(b => b?.classList.remove('active'));
+    activeBtn?.classList.add('active');
+    initCropperBox(ratio);
+  }
+  cropAspectFree?.addEventListener('click', () => setAspect(null, cropAspectFree));
+  cropAspectWide?.addEventListener('click', () => setAspect(1.7, cropAspectWide));
+  cropAspectSquare?.addEventListener('click', () => setAspect(1.0, cropAspectSquare));
+  cropAspectTall?.addEventListener('click', () => setAspect(0.75, cropAspectTall));
+
+  cropConfirmBtn?.addEventListener('click', async () => {
+    if (!cropperRawFile) return;
+
+    cropConfirmBtn.disabled = true;
+    cropConfirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Picking...';
 
     try {
-      // Compress and isolate product background
-      const processedFile = await compressImageForUpload(file, 1600, true);
-      const url = URL.createObjectURL(processedFile);
-
-      const newProd = {
-        id: Date.now() + Math.random(),
-        file: processedFile,
-        previewUrl: url,
-        width: 84,
-        depth: 36,
-        height: 34,
-        unit: 'inch',
-        tapX: null,
-        tapY: null,
+      const m = getImgMetrics();
+      const normRect = {
+        x: Math.max(0, Math.min(1, (box.x - m.left) / m.w)),
+        y: Math.max(0, Math.min(1, (box.y - m.top) / m.h)),
+        w: Math.max(0.05, Math.min(1, box.w / m.w)),
+        h: Math.max(0.05, Math.min(1, box.h / m.h)),
       };
 
-      products.push(newProd);
+      const removeStudioBg = !!cropRemoveStudioBgSwitch?.checked;
+      const croppedFile = await cropAndProcessProduct(cropperRawFile, normRect, removeStudioBg);
+      const url = URL.createObjectURL(croppedFile);
+
+      if (editingProductId) {
+        const existing = products.find(p => p.id === editingProductId);
+        if (existing) {
+          if (existing.previewUrl) URL.revokeObjectURL(existing.previewUrl);
+          existing.file = croppedFile;
+          existing.previewUrl = url;
+          existing.normRect = normRect;
+          existing.removeStudioBg = removeStudioBg;
+        }
+      } else {
+        const newProd = {
+          id: Date.now() + Math.random(),
+          sourceFile: cropperRawFile,
+          file: croppedFile,
+          previewUrl: url,
+          normRect: normRect,
+          removeStudioBg: removeStudioBg,
+          width: 84,
+          depth: 36,
+          height: 34,
+          unit: 'inch',
+          tapX: null,
+          tapY: null,
+        };
+        products.push(newProd);
+      }
+
+      pickProductModal?.hide();
       renderProductsList();
       renderTapProductTabs();
       validateScreen2();
       notifyNativeApp('onProductAdded', { count: products.length });
     } catch (err) {
-      showError('Failed to isolate product photo.');
+      showError('Failed to crop product.');
+    } finally {
+      cropConfirmBtn.disabled = false;
+      cropConfirmBtn.innerHTML = '<i class="bi bi-check2-circle text-warning"></i> Pick This Product';
+      if (productCameraInput) productCameraInput.value = '';
+      if (productGalleryInput) productGalleryInput.value = '';
+    }
+  });
+
+  cropSkipBtn?.addEventListener('click', async () => {
+    if (!cropperRawFile) return;
+
+    try {
+      const processedFile = await compressImageForUpload(cropperRawFile, 1200, true);
+      const url = URL.createObjectURL(processedFile);
+
+      if (editingProductId) {
+        const existing = products.find(p => p.id === editingProductId);
+        if (existing) {
+          if (existing.previewUrl) URL.revokeObjectURL(existing.previewUrl);
+          existing.file = processedFile;
+          existing.previewUrl = url;
+          existing.normRect = { x: 0, y: 0, w: 1, h: 1 };
+          existing.removeStudioBg = false;
+        }
+      } else {
+        const newProd = {
+          id: Date.now() + Math.random(),
+          sourceFile: cropperRawFile,
+          file: processedFile,
+          previewUrl: url,
+          normRect: { x: 0, y: 0, w: 1, h: 1 },
+          removeStudioBg: false,
+          width: 84,
+          depth: 36,
+          height: 34,
+          unit: 'inch',
+          tapX: null,
+          tapY: null,
+        };
+        products.push(newProd);
+      }
+
+      renderProductsList();
+      renderTapProductTabs();
+      validateScreen2();
+    } catch (e) {
+      showError('Failed to process image.');
     } finally {
       if (productCameraInput) productCameraInput.value = '';
       if (productGalleryInput) productGalleryInput.value = '';
     }
+  });
+
+  async function handleProductPhotoSelect(file) {
+    if (!file || products.length >= 3) return;
+    openProductCropper(file, null);
   }
 
   if (productCameraInput) productCameraInput.addEventListener('change', (e) => handleProductPhotoSelect(e.target.files[0]));
@@ -417,18 +712,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       card.className = 'product-item-card';
       card.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center justify-content-between mb-2">
           <div class="d-flex align-items-center gap-2">
             <span class="badge bg-dark rounded-pill px-2 py-1 font-monospace">Product ${idx + 1}</span>
-            <span class="small text-muted fw-semibold" style="font-size: 0.75rem;">Background Isolated</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small">
+              <i class="bi bi-check-circle-fill me-1"></i> ${prod.removeStudioBg ? 'Studio Cutout' : 'Framed & Picked'}
+            </span>
           </div>
-          <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 rounded-2 remove-prod-btn" data-id="${prod.id}">
-            <i class="bi bi-trash3"></i> Remove
-          </button>
+          <div class="d-flex gap-1">
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 rounded-2 crop-prod-btn" data-id="${prod.id}" style="font-size: 0.75rem;">
+              <i class="bi bi-crop"></i> Re-Pick
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 rounded-2 remove-prod-btn" data-id="${prod.id}" style="font-size: 0.75rem;">
+              <i class="bi bi-trash3"></i> Remove
+            </button>
+          </div>
         </div>
 
         <div class="d-flex gap-3 align-items-center">
-          <img src="${prod.previewUrl}" alt="Product ${idx + 1}" class="prod-thumb-img flex-shrink-0">
+          <img src="${prod.previewUrl}" alt="Product ${idx + 1}" class="prod-thumb-img flex-shrink-0" style="width: 64px; height: 64px; object-fit: contain; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
           <div class="flex-grow-1">
             <div class="row g-1">
               <div class="col-4">
@@ -470,6 +772,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Attach listeners
+    productsContainer.querySelectorAll('.crop-prod-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = parseFloat(btn.dataset.id);
+        const prod = products.find(p => p.id === id);
+        if (prod && prod.sourceFile) {
+          openProductCropper(prod.sourceFile, prod);
+        }
+      });
+    });
+
     productsContainer.querySelectorAll('.remove-prod-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = parseFloat(btn.dataset.id);

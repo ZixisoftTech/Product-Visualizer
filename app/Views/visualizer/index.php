@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Rajgarhwala AI — Furniture Room Visualizer</title>
+  <title>Vidona AI — Furniture Room Visualizer</title>
   <!-- Bootstrap 5 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <!-- Bootstrap Icons -->
@@ -21,11 +21,9 @@
   <header class="bg-white border-bottom py-2 sticky-top app-header">
     <div class="container d-flex align-items-center justify-content-between">
       <div class="d-flex align-items-center gap-2">
-        <div class="bg-dark text-white rounded-3 p-1 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-          <i class="bi bi-house-door-fill fs-6"></i>
-        </div>
+        <img src="/images/vidona-logo.png" alt="Vidona" class="rounded-2 shadow-sm" style="width: 32px; height: 32px; object-fit: cover;">
         <div>
-          <h1 class="h6 mb-0 fw-bold brand-title text-dark">AI Visualizer</h1>
+          <h1 class="h6 mb-0 fw-bold brand-title text-dark">Vidona AI</h1>
         </div>
       </div>
       <!-- Progress Indicator -->
@@ -430,9 +428,84 @@
 
   </main>
 
+  <!-- ========================================== -->
+  <!-- MODAL: PICK & FRAME PRODUCT -->
+  <!-- ========================================== -->
+  <div class="modal fade" id="pickProductModal" tabindex="-1" aria-labelledby="pickProductModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+      <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+        <div class="modal-header border-bottom py-2 px-3 bg-white">
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-2 p-1 bg-warning bg-opacity-10 text-warning d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;">
+              <i class="bi bi-crop fs-6"></i>
+            </div>
+            <div>
+              <h6 class="modal-title fw-bold mb-0 text-dark" id="pickProductModalLabel" style="font-size: 0.95rem;">Pick Your Product</h6>
+              <div class="text-muted" style="font-size: 0.72rem;">Drag box to frame only the furniture piece</div>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body p-2 bg-dark text-center position-relative">
+          <!-- Cropper Stage -->
+          <div id="cropperStage" class="cropper-stage mx-auto">
+            <img id="cropperSourceImg" src="" alt="Showroom furniture photo">
+
+            <!-- Draggable & Resizable Crop Box -->
+            <div id="cropperBox" class="cropper-box">
+              <div class="crop-grid-h top-33"></div>
+              <div class="crop-grid-h top-66"></div>
+              <div class="crop-grid-v left-33"></div>
+              <div class="crop-grid-v left-66"></div>
+
+              <!-- Corner handles -->
+              <div class="crop-handle handle-nw" data-handle="nw"></div>
+              <div class="crop-handle handle-ne" data-handle="ne"></div>
+              <div class="crop-handle handle-sw" data-handle="sw"></div>
+              <div class="crop-handle handle-se" data-handle="se"></div>
+
+              <!-- Edge handles -->
+              <div class="crop-handle handle-n" data-handle="n"></div>
+              <div class="crop-handle handle-s" data-handle="s"></div>
+              <div class="crop-handle handle-w" data-handle="w"></div>
+              <div class="crop-handle handle-e" data-handle="e"></div>
+            </div>
+          </div>
+
+          <!-- Quick Aspect Buttons & Studio Cutout switch -->
+          <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top border-secondary flex-wrap gap-1 px-1">
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" id="cropAspectFree" class="btn btn-outline-light btn-sm py-1 px-2 active" style="font-size: 0.72rem;">Free</button>
+              <button type="button" id="cropAspectWide" class="btn btn-outline-light btn-sm py-1 px-2" style="font-size: 0.72rem;">Sofa/Bed</button>
+              <button type="button" id="cropAspectSquare" class="btn btn-outline-light btn-sm py-1 px-2" style="font-size: 0.72rem;">Square</button>
+              <button type="button" id="cropAspectTall" class="btn btn-outline-light btn-sm py-1 px-2" style="font-size: 0.72rem;">Chair/Tall</button>
+            </div>
+
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" role="switch" id="cropRemoveStudioBgSwitch">
+              <label class="form-check-label text-white small" for="cropRemoveStudioBgSwitch" style="font-size: 0.72rem;">
+                Studio Cutout
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer border-top py-2 px-3 justify-content-between bg-white">
+          <button type="button" id="cropSkipBtn" class="btn btn-outline-secondary btn-sm px-3 rounded-3" data-bs-dismiss="modal" style="font-size: 0.8rem;">
+            Use Full Image
+          </button>
+          <button type="button" id="cropConfirmBtn" class="btn btn-dark btn-sm px-4 py-2 rounded-3 fw-bold d-flex align-items-center gap-1 shadow-sm" style="font-size: 0.82rem;">
+            <i class="bi bi-check2-circle text-warning"></i> Pick This Product
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer class="text-center py-3 text-muted small border-top bg-white app-footer">
     <div class="container" style="font-size: 0.75rem;">
-      Rajgarhwala AI &bull; Showroom Furniture Visualizer
+      Vidona AI &bull; Showroom Furniture Visualizer
     </div>
   </footer>
 
