@@ -227,8 +227,103 @@ document.addEventListener('DOMContentLoaded', () => {
   const modeTapContainer = document.getElementById('modeTapContainer');
   const tapRoomImg = document.getElementById('tapRoomImg');
   const tapRoomCanvasWrapper = document.getElementById('tapRoomCanvasWrapper');
-  const tapMarkerPin = document.getElementById('tapMarkerPin');
+  const tapProductTabBar = document.getElementById('tapProductTabBar');
+  const activeTabNotice = document.getElementById('activeTabNotice');
   const tapCoordinatesLabel = document.getElementById('tapCoordinatesLabel');
+
+  const tapMarkerPins = [
+    document.getElementById('tapMarkerPin_0'),
+    document.getElementById('tapMarkerPin_1'),
+    document.getElementById('tapMarkerPin_2'),
+  ];
+
+  let activeProductTapIndex = 0;
+  let activeAdjustProductIndex = 0;
+
+  const pinColors = [
+    { name: 'Blue', hex: '#2563eb', class: 'tab-blue' },
+    { name: 'Amber', hex: '#d97706', class: 'tab-amber' },
+    { name: 'Green', hex: '#059669', class: 'tab-green' },
+  ];
+
+  function renderTapProductTabs() {
+    if (!tapProductTabBar) return;
+    tapProductTabBar.innerHTML = '';
+
+    if (products.length === 0) {
+      tapProductTabBar.innerHTML = '<span class="text-muted small">Add products first to place on the floor</span>';
+      return;
+    }
+
+    if (activeProductTapIndex >= products.length) {
+      activeProductTapIndex = 0;
+    }
+
+    products.forEach((prod, idx) => {
+      const color = pinColors[idx] || pinColors[0];
+      const isPlaced = prod.tapX !== null && prod.tapY !== null;
+      const isActive = idx === activeProductTapIndex;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `product-tap-btn ${color.class} ${isActive ? 'active' : ''}`;
+      btn.innerHTML = `
+        <span class="tab-dot"></span>
+        <span>Product ${idx + 1}</span>
+        ${isPlaced ? '<span class="badge bg-success-subtle text-success p-0 ms-1" style="font-size:0.65rem;">✓ Placed</span>' : '<span class="text-muted ms-1" style="font-size:0.65rem;">Tap to place</span>'}
+      `;
+
+      btn.addEventListener('click', () => {
+        activeProductTapIndex = idx;
+        renderTapProductTabs();
+        updateTapUI();
+      });
+
+      tapProductTabBar.appendChild(btn);
+    });
+
+    updateTapUI();
+  }
+
+  function updateTapUI() {
+    const curColor = pinColors[activeProductTapIndex] || pinColors[0];
+
+    if (activeTabNotice) {
+      activeTabNotice.textContent = `Placing Product ${activeProductTapIndex + 1} (${curColor.name} Pin)`;
+      activeTabNotice.style.borderColor = curColor.hex;
+      activeTabNotice.style.color = curColor.hex;
+    }
+
+    // Render pins for all products
+    tapMarkerPins.forEach((pinEl, idx) => {
+      if (!pinEl) return;
+      const p = products[idx];
+      if (p && p.tapX !== null && p.tapY !== null) {
+        pinEl.style.left = (p.tapX * 100) + '%';
+        pinEl.style.top = (p.tapY * 100) + '%';
+        pinEl.classList.remove('d-none');
+      } else {
+        pinEl.classList.add('d-none');
+      }
+    });
+
+    // Update coordinates summary label
+    if (tapCoordinatesLabel) {
+      const placedSummaries = products.map((p, idx) => {
+        if (p.tapX === null) return `<span class="text-muted">[${idx + 1}] Not placed</span>`;
+        let horiz = 'Center';
+        if (p.tapX < 0.35) horiz = 'Left';
+        else if (p.tapX > 0.65) horiz = 'Right';
+        return `<strong style="color: ${pinColors[idx].hex}">[${idx + 1}] ${horiz} (${Math.round(p.tapX * 100)}%, ${Math.round(p.tapY * 100)}%)</strong>`;
+      });
+
+      if (placedSummaries.length > 0) {
+        tapCoordinatesLabel.innerHTML = placedSummaries.join(' &bull; ');
+      } else {
+        tapCoordinatesLabel.innerHTML = 'Tap on the room floor to mark Product 1';
+      }
+    }
+  }
 
   function updatePlacementModeUI() {
     if (modeAutoRadio?.checked) {
@@ -240,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (modeAutoDesc) modeAutoDesc.classList.add('d-none');
       if (modeTapContainer) modeTapContainer.classList.remove('d-none');
       if (tapRoomImg && roomPreviewUrl) tapRoomImg.src = roomPreviewUrl;
+      renderTapProductTabs();
     }
   }
 
@@ -249,6 +345,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle Tap on Room Preview Canvas
   if (tapRoomCanvasWrapper) {
     tapRoomCanvasWrapper.addEventListener('click', (e) => {
+      if (products.length === 0) return;
+
       const rect = tapRoomCanvasWrapper.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
@@ -257,29 +355,21 @@ document.addEventListener('DOMContentLoaded', () => {
       let normY = clickY / rect.height;
 
       normX = Math.max(0.08, Math.min(0.92, normX));
-      normY = Math.max(0.10, Math.min(0.95, normY));
+      normY = Math.max(0.12, Math.min(0.92, normY));
 
-      currentTapX = Math.round(normX * 1000) / 1000;
-      currentTapY = Math.round(normY * 1000) / 1000;
+      const targetProd = products[activeProductTapIndex];
+      if (targetProd) {
+        targetProd.tapX = Math.round(normX * 1000) / 1000;
+        targetProd.tapY = Math.round(normY * 1000) / 1000;
 
-      // Position visual marker pin
-      if (tapMarkerPin) {
-        tapMarkerPin.style.left = (normX * 100) + '%';
-        tapMarkerPin.style.top = (normY * 100) + '%';
-        tapMarkerPin.classList.remove('d-none');
-      }
+        // Automatically cycle to the next unplaced product if any
+        const nextUnplacedIdx = products.findIndex((p, idx) => idx !== activeProductTapIndex && (p.tapX === null || p.tapY === null));
+        if (nextUnplacedIdx !== -1) {
+          activeProductTapIndex = nextUnplacedIdx;
+        }
 
-      // Readable position label
-      let horizDesc = 'Center';
-      if (normX < 0.35) horizDesc = 'Left side';
-      else if (normX > 0.65) horizDesc = 'Right side';
-
-      let depthDesc = 'Floor contact';
-      if (normY < 0.42) depthDesc = 'Against back wall';
-      else if (normY > 0.70) depthDesc = 'Foreground floor';
-
-      if (tapCoordinatesLabel) {
-        tapCoordinatesLabel.innerHTML = `<i class="bi bi-geo-alt-fill text-warning"></i> Selected: <strong>${horizDesc}</strong> (${depthDesc})`;
+        renderTapProductTabs();
+        updateTapUI();
       }
     });
   }
@@ -300,10 +390,13 @@ document.addEventListener('DOMContentLoaded', () => {
         depth: 36,
         height: 34,
         unit: 'inch',
+        tapX: null,
+        tapY: null,
       };
 
       products.push(newProd);
       renderProductsList();
+      renderTapProductTabs();
       validateScreen2();
       notifyNativeApp('onProductAdded', { count: products.length });
     } catch (err) {
@@ -384,6 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
         products = products.filter(p => p.id !== id);
         renderProductsList();
+        renderTapProductTabs();
         validateScreen2();
       });
     });
@@ -482,15 +576,27 @@ document.addEventListener('DOMContentLoaded', () => {
           depth: prod.depth,
           height: prod.height,
           unit: prod.unit,
+          tap_x: prod.tapX,
+          tap_y: prod.tapY,
         });
+
+        if (prod.tapX !== null && prod.tapY !== null) {
+          formData.append(`tap_x_${index}`, prod.tapX);
+          formData.append(`tap_y_${index}`, prod.tapY);
+        }
       });
 
       formData.append('products_data', JSON.stringify(productsMeta));
       formData.append('placement', optionalPlacement.value.trim() || 'Center');
       formData.append('placement_mode', currentPlacementMode);
-      if (currentPlacementMode === 'tap' && currentTapX !== null && currentTapY !== null) {
-        formData.append('tap_x', currentTapX);
-        formData.append('tap_y', currentTapY);
+      
+      // Fallback first product tap coordinate
+      if (currentPlacementMode === 'tap') {
+        const firstTap = products.find(p => p.tapX !== null && p.tapY !== null);
+        if (firstTap) {
+          formData.append('tap_x', firstTap.tapX);
+          formData.append('tap_y', firstTap.tapY);
+        }
       }
 
       // Reset manual fine-tuning offsets for fresh generation
@@ -581,6 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const payload = {
         placement_mode: currentPlacementMode,
+        product_index: activeAdjustProductIndex,
         tap_x: currentTapX,
         tap_y: currentTapY,
         offset_x: currentAdjustments.offset_x,
@@ -631,15 +738,48 @@ document.addEventListener('DOMContentLoaded', () => {
     sliderAfterImg.src = generatedSrc;
     sliderBeforeImg.src = roomSrc;
 
-    // Thumbnails of products placed
+    // Render adjust product selector if more than 1 product
+    const adjustProductSelector = document.getElementById('adjustProductSelector');
+    if (adjustProductSelector) {
+      if (products.length > 1) {
+        adjustProductSelector.classList.remove('d-none');
+        adjustProductSelector.innerHTML = '';
+        products.forEach((prod, idx) => {
+          const color = pinColors[idx] || pinColors[0];
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `product-tap-btn ${color.class} ${idx === activeAdjustProductIndex ? 'active' : ''}`;
+          btn.innerHTML = `
+            <span class="tab-dot"></span>
+            <span>Product ${idx + 1}</span>
+          `;
+          btn.addEventListener('click', () => {
+            activeAdjustProductIndex = idx;
+            // Highlight active button
+            adjustProductSelector.querySelectorAll('.product-tap-btn').forEach((b, bi) => {
+              b.classList.toggle('active', bi === idx);
+            });
+            if (adjustStatus) adjustStatus.textContent = `Nudging Product ${idx + 1}`;
+          });
+          adjustProductSelector.appendChild(btn);
+        });
+      } else {
+        adjustProductSelector.classList.add('d-none');
+      }
+    }
+
+    // Thumbnails of products placed & AI Intelligence note
     resultProductsThumbList.innerHTML = '';
     const count = products.length;
-    resultProductsHeader.textContent = `${count} Product${count > 1 ? 's' : ''} Placed`;
+    const aiNote = vis.ai_intelligence_used ? ' <span class="badge bg-dark text-warning border ms-1"><i class="bi bi-stars"></i> OpenAI Vision Guided</span>' : '';
+    resultProductsHeader.innerHTML = `${count} Product${count > 1 ? 's' : ''} Placed ${aiNote}`;
 
     products.forEach((prod, i) => {
+      const color = pinColors[i] || pinColors[0];
       const div = document.createElement('div');
       div.className = 'd-flex align-items-center gap-1 p-1 px-2 bg-white rounded-3 border';
       div.innerHTML = `
+        <span class="tab-dot" style="width: 8px; height: 8px; border-radius: 50%; background: ${color.hex}"></span>
         <img src="${prod.previewUrl}" alt="Product ${i + 1}" style="width: 28px; height: 28px; object-fit: contain;">
         <span class="small font-monospace text-dark" style="font-size: 0.75rem;">${prod.width}×${prod.depth} in</span>
       `;

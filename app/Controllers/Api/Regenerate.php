@@ -68,6 +68,8 @@ class Regenerate extends BaseController
             ]);
         }
 
+        $adjustProductIndex = isset($jsonData['product_index']) ? (int) $jsonData['product_index'] : (int) ($this->request->getPost('product_index') ?: 0);
+
         // Reconstruct products list
         $productsList = [];
         if (!empty($record['products_json'])) {
@@ -84,6 +86,8 @@ class Regenerate extends BaseController
                     'depth'  => (float) ($dp['depth'] ?? 36),
                     'height' => (float) ($dp['height'] ?? 34),
                     'unit'   => (string) ($dp['unit'] ?? 'inch'),
+                    'tap_x'  => isset($dp['tap_x']) && $dp['tap_x'] !== null ? (float) $dp['tap_x'] : null,
+                    'tap_y'  => isset($dp['tap_y']) && $dp['tap_y'] !== null ? (float) $dp['tap_y'] : null,
                 ];
             }
         }
@@ -96,6 +100,8 @@ class Regenerate extends BaseController
                     'depth'  => (float) ($record['product_depth'] ?? 36),
                     'height' => (float) ($record['product_height'] ?? 34),
                     'unit'   => (string) ($record['dimension_unit'] ?? 'inch'),
+                    'tap_x'  => $tapX,
+                    'tap_y'  => $tapY,
                 ]
             ];
         }
@@ -112,6 +118,10 @@ class Regenerate extends BaseController
         $genAbsPath = $genDir . '/' . $genFileName;
         $genRelPath = 'uploads/generated/' . $genFileName;
 
+        // Apply adjustments either per product or globally
+        $allAdjustments = $adjustments;
+        $allAdjustments[$adjustProductIndex] = $adjustments;
+
         $compositeOk = ImageProcessor::createMultiProductComposite(
             $hallAbsPath,
             $productsList,
@@ -120,7 +130,7 @@ class Regenerate extends BaseController
             $placementMode,
             $tapX !== null ? (float) $tapX : null,
             $tapY !== null ? (float) $tapY : null,
-            $adjustments
+            $allAdjustments
         );
 
         $imageData = null;

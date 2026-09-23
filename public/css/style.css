@@ -318,13 +318,77 @@ header.sticky-top {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #d97706;
   color: #ffffff;
-  font-size: 13px;
-  box-shadow: 0 0 12px rgba(217, 119, 6, 0.85), 0 2px 4px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  font-weight: 700;
   border: 2px solid #ffffff;
   line-height: 1;
 }
+
+/* Distinct Pin Colors */
+.pin-blue .tap-pin-dot {
+  background: #2563eb;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.9), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+.pin-blue .tap-pin-pulse {
+  background: rgba(37, 99, 235, 0.45);
+}
+
+.pin-amber .tap-pin-dot {
+  background: #d97706;
+  box-shadow: 0 0 12px rgba(217, 119, 6, 0.9), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+.pin-amber .tap-pin-pulse {
+  background: rgba(217, 119, 6, 0.45);
+}
+
+.pin-green .tap-pin-dot {
+  background: #059669;
+  box-shadow: 0 0 12px rgba(5, 150, 105, 0.9), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+.pin-green .tap-pin-pulse {
+  background: rgba(5, 150, 105, 0.45);
+}
+
+/* Product Tap Tabs */
+.product-tap-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.65rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.product-tap-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.product-tap-btn.active {
+  border-color: #1e293b;
+  background: #1e293b;
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.product-tap-btn .tab-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.product-tap-btn.tab-blue .tab-dot { background: #2563eb; }
+.product-tap-btn.tab-amber .tab-dot { background: #d97706; }
+.product-tap-btn.tab-green .tab-dot { background: #059669; }
+

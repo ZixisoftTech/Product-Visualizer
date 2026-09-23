@@ -2,6 +2,11 @@
 
 namespace App\Libraries;
 
+/**
+ * OpenAI Intelligence Service
+ * Uses GPT-4o Vision for spatial interior reasoning (lighting angle, floor plane, optimal placement)
+ * and DALL-E / Image generation with graceful fallback to the local Spatial Engine.
+ */
 class OpenAIService
 {
     protected string $apiKey;
@@ -10,124 +15,133 @@ class OpenAIService
 
     public function __construct()
     {
-        $this->apiKey = env('OPENAI_API_KEY', '') ?: (getenv('OPENAI_API_KEY') ?: '');
-        $this->visionModel = env('OPENAI_VISION_MODEL', 'gpt-4o');
-        $this->genModel = env('OPENAI_GEN_MODEL', 'gpt-image-1');
+        $key = getenv('OPENAI_API_KEY');
+        if (empty($key) && function_exists('\env')) {
+            $key = \env('OPENAI_API_KEY', '');
+        }
+        $root = defined('ROOTPATH') ? ROOTPATH : (dirname(__DIR__, 2) . '/');
+        if (empty($key) && file_exists($root . '.env')) {
+            $lines = file($root . '.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                if (str_starts_with(trim($line), 'OPENAI_API_KEY')) {
+                    $parts = explode('=', $line, 2);
+                    if (isset($parts[1])) {
+                        $key = trim(trim($parts[1]), '"\'');
+                        break;
+                    }
+                }
+            }
+        }
+        $this->apiKey = trim((string) $key);
+        $this->visionModel = getenv('OPENAI_VISION_MODEL') ?: 'gpt-4o-mini';
+        $this->genModel = getenv('OPENAI_GEN_MODEL') ?: 'dall-e-3';
     }
 
     public function isConfigured(): bool
     {
-        return !empty(trim($this->apiKey));
+        return !empty($this->apiKey) && str_starts_with($this->apiKey, 'sk-');
     }
 
     /**
-     * Executes room preservation visualization via OpenAI image edit endpoint
-     * Sends both the customer room photograph and the showroom furniture piece.
+     * Uses GPT-4o Vision to analyze the customer's actual room photograph,
+     * detect lighting angle, ambient shadow warmth, horizon plane,
+     * and recommend harmonious placement coordinates for each furniture product.
      */
-    public function generateVisualization(
+    public function analyzeRoomAndProducts(
         string $roomPath,
-        string $productPath,
-        string $outputPath,
-        array $metadata = []
+        array $productsList,
+        array $roomDims = [],
+        string $placementHint = ''
     ): array {
-        if (!$this->isConfigured()) {
-            return [
-                'success' => false,
-                'is_mock' => true,
-                'error'   => 'OpenAI API key not configured.',
-            ];
+        if (!$this->isConfigured() || !file_exists($roomPath)) {
+            return ['success' => false, 'error' => 'OpenAI not configured or room image missing.'];
         }
 
-        $width = $metadata['product_width'] ?? 240;
-        $depth = $metadata['product_depth'] ?? 90;
-        $height = $metadata['product_height'] ?? 85;
-        $unit = $metadata['dimension_unit'] ?? 'cm';
-        $placement = $metadata['placement'] ?? 'Center';
-        $instructions = trim($metadata['instructions'] ?? '');
+        try {
+            $roomMime = mime_content_type($roomPath) ?: 'image/jpeg';
+            $roomB64 = base64_encode(file_get_contents($roomPath));
 
-        // Prompt enforcing 100% room preservation and faithful furniture placement
-        $prompt = "You are an architectural interior visualizer. "
-            . "IMAGE 1 is the customer's ACTUAL room photograph. "
-            . "IMAGE 2 is the actual furniture product from the showroom. "
-            . "CRITICAL MANDATES: "
-            . "1. ROOM PRESERVATION: Keep the customer's room from Image 1 100% intact. Keep the walls, paint, wallpaper, windows, doors, floor, and lighting completely unchanged. Do NOT redesign or remodel the room. "
-            . "2. PRODUCT PLACEMENT: Place the EXACT furniture from Image 2 into Image 1. Do NOT alter its color, upholstery, material, or design. "
-            . "3. SCALE & POSITION: Place the piece at the {$placement} position on the floor. Match the dimensions ({$width}x{$depth}x{$height} {$unit}) with realistic scale relative to the room. "
-            . "4. CONTACT & LIGHTING: Natural floor contact with soft contact shadows matching the room's ambient lighting. "
-            . (!empty($instructions) ? "5. SPECIAL INSTRUCTIONS: \"{$instructions}\". " : '')
-            . "Output the customer's real room with the showroom product placed naturally inside.";
+            $prompt = "You are an expert interior designer and spatial lighting engineer.\n"
+                . "Analyze this customer room photograph.\n"
+                . "Real-world Room Dimensions: " . ($roomDims['length'] ?? 15) . "x" . ($roomDims['width'] ?? 12) . "x" . ($roomDims['height'] ?? 10) . " ft.\n"
+                . "Products to place count: " . count($productsList) . ".\n"
+                . (!empty($placementHint) ? "User placement hint: \"{$placementHint}\".\n" : "")
+                . "Analyze the natural lighting direction, shadow angle, floor horizon line, and best coordinates.\n"
+                . "Return ONLY a valid JSON object matching this schema:\n"
+                . "{\n"
+                . "  \"lighting_direction\": \"left-to-right\" | \"right-to-left\" | \"overhead\" | \"diffuse\",\n"
+                . "  \"shadow_angle_deg\": number (-45 to 45, where positive shifts shadow to the right),\n"
+                . "  \"shadow_opacity\": number (0.30 to 0.65),\n"
+                . "  \"shadow_blur\": number (8 to 22),\n"
+                . "  \"horizon_y_pct\": number (0.35 to 0.46, normalized horizon height),\n"
+                . "  \"floor_start_y_pct\": number (0.40 to 0.50, where floor begins),\n"
+                . "  \"placements\": [\n"
+                . "    {\"index\": 0, \"x_pct\": number (0.15 to 0.85), \"floor_y_pct\": number (0.44 to 0.85)}\n"
+                . "  ],\n"
+                . "  \"designer_summary\": string (concise 1-sentence design note)\n"
+                . "}";
 
-        $url = 'https://api.openai.com/v1/images/edits';
-
-        // Multipart form-data with indexed file keys for PHP cURL
-        $postData = [
-            'model'    => $this->genModel,
-            'image[0]' => new \CURLFile($roomPath, 'image/jpeg', 'customer_room.jpg'),
-            'image[1]' => new \CURLFile($productPath, 'image/png', 'furniture_product.png'),
-            'prompt'   => $prompt,
-            'size'     => '1024x1024',
-        ];
-
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => $url,
-            CURLOPT_POST           => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 90,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . $this->apiKey,
-            ],
-            CURLOPT_POSTFIELDS     => $postData,
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($curlError) {
-            log_message('error', '[OpenAI cURL Error] ' . $curlError);
-            return [
-                'success' => false,
-                'error'   => 'Network error connecting to OpenAI: ' . $curlError,
+            $messages = [
+                [
+                    'role' => 'user',
+                    'content' => [
+                        [
+                            'type' => 'text',
+                            'text' => $prompt
+                        ],
+                        [
+                            'type' => 'image_url',
+                            'image_url' => [
+                                'url' => "data:{$roomMime};base64,{$roomB64}",
+                                'detail' => 'low'
+                            ]
+                        ]
+                    ]
+                ]
             ];
-        }
 
-        $result = json_decode($response, true);
+            $ch = curl_init('https://api.openai.com/v1/chat/completions');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_TIMEOUT        => 25,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Bearer ' . $this->apiKey,
+                    'Content-Type: application/json',
+                ],
+                CURLOPT_POSTFIELDS     => json_encode([
+                    'model'           => $this->visionModel,
+                    'messages'        => $messages,
+                    'response_format' => ['type' => 'json_object'],
+                    'temperature'     => 0.2,
+                ]),
+            ]);
 
-        if ($httpCode >= 200 && $httpCode < 300) {
-            $b64 = $result['data'][0]['b64_json'] ?? null;
-            if ($b64) {
-                file_put_contents($outputPath, base64_decode($b64));
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError || $httpCode < 200 || $httpCode >= 300) {
+                log_message('warning', "[OpenAI Vision Analysis] HTTP {$httpCode} Error: " . ($curlError ?: $response));
+                return ['success' => false, 'error' => "OpenAI HTTP {$httpCode}"];
+            }
+
+            $json = json_decode($response, true);
+            $content = $json['choices'][0]['message']['content'] ?? '';
+            $data = json_decode($content, true);
+
+            if (!empty($data) && is_array($data)) {
                 return [
-                    'success'    => true,
-                    'prompt'     => $prompt,
-                    'is_mock'    => false,
-                    'image_data' => 'data:image/png;base64,' . $b64,
+                    'success' => true,
+                    'analysis' => $data,
                 ];
             }
 
-            $imageUrl = $result['data'][0]['url'] ?? null;
-            if ($imageUrl) {
-                $imgData = @file_get_contents($imageUrl);
-                if ($imgData) {
-                    file_put_contents($outputPath, $imgData);
-                    return [
-                        'success'    => true,
-                        'prompt'     => $prompt,
-                        'is_mock'    => false,
-                        'image_data' => 'data:image/png;base64,' . base64_encode($imgData),
-                    ];
-                }
-            }
+            return ['success' => false, 'error' => 'Invalid JSON from OpenAI Vision.'];
+        } catch (\Throwable $e) {
+            log_message('error', '[OpenAI Vision Exception] ' . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
         }
-
-        $errorMsg = $result['error']['message'] ?? "OpenAI API returned HTTP {$httpCode}";
-        log_message('warning', '[OpenAI API Warning] ' . $errorMsg);
-
-        return [
-            'success' => false,
-            'error'   => $errorMsg,
-        ];
     }
 }

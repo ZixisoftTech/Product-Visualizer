@@ -219,22 +219,39 @@
           AI spatial engine calculates depth, eye-level perspective, and natural circulation to place products optimally.
         </div>
 
-        <!-- Mode B Interactive Room Canvas -->
+        <!-- Mode B Interactive Room Canvas with Multi-Product Tabs -->
         <div id="modeTapContainer" class="d-none mt-2">
-          <p class="small text-muted mb-2">
-            <i class="bi bi-hand-index-thumb text-warning me-1"></i>
-            Tap anywhere on the floor where you want the furniture placed:
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="small fw-bold text-dark"><i class="bi bi-hand-index-thumb text-warning me-1"></i> Tap to Place Each Product</span>
+            <span id="activeTabNotice" class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 small">Placing Product 1</span>
+          </div>
+          <p class="small text-muted mb-2" style="font-size: 0.78rem;">
+            Select a product tab below, then tap the spot on the room floor where you want it placed.
           </p>
+
+          <!-- Per-Product Placement Tabs -->
+          <div id="tapProductTabBar" class="d-flex gap-2 mb-2 overflow-auto pb-1" role="tablist">
+            <!-- Dynamically populated for Product 1, Product 2, Product 3 -->
+          </div>
+
           <div id="tapRoomCanvasWrapper" class="position-relative rounded-3 overflow-hidden border shadow-sm" style="cursor: crosshair;">
-            <img id="tapRoomImg" src="" alt="Room for tap placement" class="w-100 d-block" style="max-height: 240px; object-fit: contain; background: #1c1917;">
-            <!-- Tap Marker Pin -->
-            <div id="tapMarkerPin" class="position-absolute d-none" style="transform: translate(-50%, -50%); pointer-events: none; z-index: 10;">
+            <img id="tapRoomImg" src="" alt="Room for tap placement" class="w-100 d-block" style="max-height: 250px; object-fit: contain; background: #1c1917;">
+            <!-- Pins for Product 0 (Blue), Product 1 (Amber), Product 2 (Green) -->
+            <div id="tapMarkerPin_0" class="position-absolute tap-pin-container pin-blue d-none" style="transform: translate(-50%, -50%); pointer-events: none; z-index: 10;">
               <span class="tap-pin-pulse"></span>
-              <span class="tap-pin-dot">●</span>
+              <span class="tap-pin-dot">1</span>
+            </div>
+            <div id="tapMarkerPin_1" class="position-absolute tap-pin-container pin-amber d-none" style="transform: translate(-50%, -50%); pointer-events: none; z-index: 11;">
+              <span class="tap-pin-pulse"></span>
+              <span class="tap-pin-dot">2</span>
+            </div>
+            <div id="tapMarkerPin_2" class="position-absolute tap-pin-container pin-green d-none" style="transform: translate(-50%, -50%); pointer-events: none; z-index: 12;">
+              <span class="tap-pin-pulse"></span>
+              <span class="tap-pin-dot">3</span>
             </div>
           </div>
-          <div id="tapCoordinatesLabel" class="small font-monospace text-muted mt-1 text-center" style="font-size: 0.75rem;">
-            No spot selected yet (tap on floor)
+          <div id="tapCoordinatesLabel" class="small text-muted mt-2 text-center" style="font-size: 0.76rem;">
+            Tap on the room floor to mark Product 1
           </div>
         </div>
       </div>
@@ -333,6 +350,11 @@
         <div class="d-flex align-items-center justify-content-between mb-2">
           <span class="small fw-bold text-dark"><i class="bi bi-sliders text-warning me-1"></i> Fine-Tune Placement</span>
           <span id="adjustStatus" class="small text-muted font-monospace" style="font-size: 0.72rem;">Tap to nudge</span>
+        </div>
+
+        <!-- Which product to fine tune (if multiple products) -->
+        <div id="adjustProductSelector" class="d-flex gap-1 mb-2 overflow-auto pb-1 d-none">
+          <!-- Rendered dynamically -->
         </div>
         <div class="row g-1">
           <div class="col-4">

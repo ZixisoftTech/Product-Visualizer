@@ -63,18 +63,25 @@ class SpatialEngine
         $finalCenterX = 0.50;
         $finalFloorY   = 0.52; // Normalized Y coordinate on floor plane
 
-        if ($placementMode === 'tap' && $tapX !== null && $tapY !== null) {
+        $effectiveTapX = $product['tap_x'] ?? $tapX;
+        $effectiveTapY = $product['tap_y'] ?? $tapY;
+
+        if ($placementMode === 'tap' && $effectiveTapX !== null && $effectiveTapY !== null) {
             // MODE B: TAP TO PLACE (Convert spatial tap intention into physically grounded placement)
-            $finalCenterX = max(0.12, min(0.88, $tapX));
+            $finalCenterX = max(0.12, min(0.88, (float) $effectiveTapX));
 
             // If user tapped on a wall (above floor plane), interpret as "against that wall/back floor"
-            if ($tapY < 0.42) {
+            if ((float) $effectiveTapY < 0.42) {
                 $finalFloorY = 0.44; // Back wall floor border
-            } elseif ($tapY > 0.88) {
+            } elseif ((float) $effectiveTapY > 0.88) {
                 $finalFloorY = 0.85; // Foreground floor
             } else {
-                $finalFloorY = $tapY; // Direct floor contact point
+                $finalFloorY = (float) $effectiveTapY; // Direct floor contact point
             }
+        } elseif (!empty($product['ai_x_pct']) && !empty($product['ai_floor_y_pct'])) {
+            // AI Vision analyzed optimal placement
+            $finalCenterX = max(0.12, min(0.88, (float) $product['ai_x_pct']));
+            $finalFloorY   = max(0.44, min(0.85, (float) $product['ai_floor_y_pct']));
         } else {
             // MODE A: AI AUTO PLACE (Interior Designer & Spatial Planner Reasoning)
             if ($totalProducts === 1) {
@@ -117,11 +124,12 @@ class SpatialEngine
             }
         }
 
-        // Apply any manual nudges / fine-tuning adjustments
-        $offsetX = (float) ($adjustments['offset_x'] ?? 0);
-        $offsetY = (float) ($adjustments['offset_y'] ?? 0);
-        $scaleMultiplier = (float) ($adjustments['scale_multiplier'] ?? 1.0);
-        $rotation = (float) ($adjustments['rotation'] ?? 0);
+        // Apply any manual nudges / fine-tuning adjustments for this product
+        $prodAdjust = $adjustments[$productIndex] ?? $adjustments;
+        $offsetX = (float) ($prodAdjust['offset_x'] ?? 0);
+        $offsetY = (float) ($prodAdjust['offset_y'] ?? 0);
+        $scaleMultiplier = (float) ($prodAdjust['scale_multiplier'] ?? 1.0);
+        $rotation = (float) ($prodAdjust['rotation'] ?? 0);
 
         $finalCenterX += $offsetX;
         $finalFloorY   += $offsetY;
@@ -131,8 +139,6 @@ class SpatialEngine
         $finalFloorY   = max(0.42, min(0.88, $finalFloorY));
 
         // 6. Calculate Perspective Depth & Projected Scale
-        // As an object moves deeper toward the horizon ($floorMinY), it gets smaller according to perspective.
-        // Depth factor ranges from 0.75 (deep against back wall) to 1.15 (close in foreground).
         $depthProgression = ($finalFloorY * $roomPixelH - $floorMinY) / max(1.0, ($floorMaxY - $floorMinY));
         $depthProgression = max(0.0, min(1.0, $depthProgression));
 
@@ -152,7 +158,6 @@ class SpatialEngine
         $targetH = (int) round($targetW * $aspectRatio);
 
         // 7. Calculate Pixel Coordinates
-        // The bottom of the product must sit ON the floor plane coordinate ($finalFloorY)
         $pixelFloorY = (int) round($finalFloorY * $roomPixelH);
         $pixelCenterX = (int) round($finalCenterX * $roomPixelW);
 
@@ -165,11 +170,17 @@ class SpatialEngine
         if ($top < (int) ($roomPixelH * 0.10)) $top = (int) ($roomPixelH * 0.10);
 
         // 8. Ground Contact Shadow Coordinates
-        // Elliptical contact shadow positioned at bottom base of the furniture
         $shadowW  = (int) round($targetW * 1.06);
         $shadowH  = (int) round($targetH * 0.22);
         $shadowCx = (int) round($left + ($targetW / 2));
         $shadowCy = (int) round($top + $targetH - ($shadowH * 0.25));
+
+        // Shadow angle shift based on room lighting
+        $shadowAngle = (float) ($adjustments['shadow_angle_deg'] ?? 0);
+        if ($shadowAngle != 0) {
+            $shadowCx += (int) round(tan(deg2rad($shadowAngle)) * ($shadowH * 0.5));
+        }
+
         $shadowRx = (int) round($shadowW / 2);
         $shadowRy = (int) round($shadowH / 2);
 

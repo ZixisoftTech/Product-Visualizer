@@ -71,6 +71,9 @@ class Visualize extends BaseController
                     $pFile->move($productsDir, $pFileName);
 
                     $meta = $productsMeta[$i] ?? [];
+                    $pTapX = isset($meta['tap_x']) && $meta['tap_x'] !== null ? (float) $meta['tap_x'] : ($this->request->getPost("tap_x_{$i}") !== null ? (float) $this->request->getPost("tap_x_{$i}") : null);
+                    $pTapY = isset($meta['tap_y']) && $meta['tap_y'] !== null ? (float) $meta['tap_y'] : ($this->request->getPost("tap_y_{$i}") !== null ? (float) $this->request->getPost("tap_y_{$i}") : null);
+
                     $productsList[] = [
                         'path'     => $pAbsPath,
                         'rel_path' => 'uploads/products/' . $pFileName,
@@ -78,6 +81,8 @@ class Visualize extends BaseController
                         'depth'    => (float) ($meta['depth'] ?? 36),
                         'height'   => (float) ($meta['height'] ?? 34),
                         'unit'     => (string) ($meta['unit'] ?? 'inch'),
+                        'tap_x'    => $pTapX,
+                        'tap_y'    => $pTapY,
                     ];
                 }
             }
@@ -98,6 +103,8 @@ class Visualize extends BaseController
                         'depth'    => (float) ($this->request->getPost('product_depth') ?: 36),
                         'height'   => (float) ($this->request->getPost('product_height') ?: 34),
                         'unit'     => (string) ($this->request->getPost('dimension_unit') ?: 'inch'),
+                        'tap_x'    => $this->request->getPost('tap_x') !== null ? (float) $this->request->getPost('tap_x') : null,
+                        'tap_y'    => $this->request->getPost('tap_y') !== null ? (float) $this->request->getPost('tap_y') : null,
                     ];
                 }
             }
@@ -122,7 +129,42 @@ class Visualize extends BaseController
                 'rotation'         => (float) ($this->request->getPost('rotation') ?: 0),
             ];
 
-            // 3. Create Record
+            // 3. OpenAI Intelligence: Analyze Room Lighting, Perspective, and Spatial Placement
+            $openAI = new \App\Libraries\OpenAIService();
+            $aiAnalysis = null;
+            $aiUsed = false;
+
+            if ($openAI->isConfigured()) {
+                $analysisRes = $openAI->analyzeRoomAndProducts(
+                    $hallAbsPath,
+                    $productsList,
+                    $roomDims,
+                    $instructions ?: $placement
+                );
+
+                if ($analysisRes['success'] && !empty($analysisRes['analysis'])) {
+                    $aiAnalysis = $analysisRes['analysis'];
+                    $aiUsed = true;
+
+                    // Align shadow angles with OpenAI detected room lighting
+                    if (isset($aiAnalysis['shadow_angle_deg'])) {
+                        $adjustments['shadow_angle_deg'] = (float) $aiAnalysis['shadow_angle_deg'];
+                    }
+
+                    // In Mode A (AI Auto Place), apply OpenAI Vision spatial placements
+                    if ($placementMode === 'auto' && !empty($aiAnalysis['placements'])) {
+                        foreach ($aiAnalysis['placements'] as $pl) {
+                            $pIdx = (int) ($pl['index'] ?? 0);
+                            if (isset($productsList[$pIdx])) {
+                                $productsList[$pIdx]['ai_x_pct'] = (float) ($pl['x_pct'] ?? 0.50);
+                                $productsList[$pIdx]['ai_floor_y_pct'] = (float) ($pl['floor_y_pct'] ?? 0.48);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Create Record
             $visualizationId = sprintf(
                 '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
                 mt_rand(0, 0xffff), mt_rand(0, 0xffff),
@@ -158,7 +200,7 @@ class Visualize extends BaseController
                 log_message('warning', '[DB Insert Skipped] ' . $e->getMessage());
             }
 
-            // 4. Generate Visualization Composite via Spatial & Perspective Engine
+            // 5. Generate Visualization Composite via Spatial & Perspective Engine
             $genFileName = 'gen_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.png';
             $genDir = StorageService::getUploadDir('generated');
             $genAbsPath = $genDir . '/' . $genFileName;
@@ -210,6 +252,8 @@ class Visualize extends BaseController
                             ];
                         }, $productsList),
                         'status'               => 'COMPLETED',
+                        'ai_intelligence_used' => $aiUsed,
+                        'ai_analysis'          => $aiAnalysis,
                     ]),
                 ]);
             }
