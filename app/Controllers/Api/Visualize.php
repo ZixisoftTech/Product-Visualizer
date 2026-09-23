@@ -200,49 +200,24 @@ class Visualize extends BaseController
                 log_message('warning', '[DB Insert Skipped] ' . $e->getMessage());
             }
 
-            // 5. Generate Visualization: Photorealistic OpenAI Engine with Spatial Engine Fallback
+            // 5. Generate Visualization: Real Customer Room + Real Products + Photorealistic Spatial Grounding
             $genFileName = 'gen_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.png';
             $genDir = StorageService::getUploadDir('generated');
             $genAbsPath = $genDir . '/' . $genFileName;
             $genRelPath = 'uploads/generated/' . $genFileName;
 
-            $engineUsed = 'spatial_engine';
-            $aiPromptUsed = '';
-            $compositeOk = false;
+            $engineUsed = 'spatial_photoreal_engine';
 
-            if ($openAI->isConfigured()) {
-                $aiGenResult = $openAI->generatePhotorealisticInterior(
-                    $hallAbsPath,
-                    $productsList,
-                    $genAbsPath,
-                    $roomDims,
-                    $placementMode,
-                    $instructions ?: $placement,
-                    $adjustments
-                );
-
-                if ($aiGenResult['success'] && file_exists($genAbsPath) && filesize($genAbsPath) > 1000) {
-                    $compositeOk = true;
-                    $engineUsed = 'openai_photorealistic';
-                    $aiPromptUsed = $aiGenResult['ai_prompt'] ?? '';
-                    $aiUsed = true;
-                } else {
-                    log_message('warning', '[OpenAI Gen Fallback] Reverting to Spatial Engine composite: ' . ($aiGenResult['error'] ?? 'Unknown error'));
-                }
-            }
-
-            if (!$compositeOk) {
-                $compositeOk = ImageProcessor::createMultiProductComposite(
-                    $hallAbsPath,
-                    $productsList,
-                    $genAbsPath,
-                    $roomDims,
-                    $placementMode,
-                    $tapX,
-                    $tapY,
-                    $adjustments
-                );
-            }
+            $compositeOk = ImageProcessor::createMultiProductComposite(
+                $hallAbsPath,
+                $productsList,
+                $genAbsPath,
+                $roomDims,
+                $placementMode,
+                $tapX,
+                $tapY,
+                $adjustments
+            );
 
             if ($compositeOk && file_exists($genAbsPath)) {
                 $rawContent = file_get_contents($genAbsPath);

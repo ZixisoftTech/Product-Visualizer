@@ -524,11 +524,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let loadingInterval = null;
   const loadingMessages = [
-    'GPT-4o Vision analyzing room architecture & natural lighting...',
-    'Extracting furniture textures, materials & fabrics...',
-    'Synthesizing physically accurate shadows & floor reflections...',
-    'Rendering magazine-grade photorealistic interior design...',
-    'Finalizing ultra-high-resolution architectural render...',
+    'Preserving your real room architecture 100%...',
+    'Isolating furniture and removing showroom background...',
+    'GPT-4o analyzing room lighting direction & floor plane...',
+    'Placing products with perspective scale & depth...',
+    'Generating photorealistic contact shadows & reflections...',
   ];
 
   function startLoadingCycle() {
@@ -539,7 +539,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadingInterval = setInterval(() => {
       idx = (idx + 1) % loadingMessages.length;
       loadingStatusText.textContent = loadingMessages[idx];
-    }, 2200);
+    }, 1800);
   }
 
   function stopLoadingCycle() {
@@ -771,11 +771,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Thumbnails of products placed & AI Intelligence note
     resultProductsThumbList.innerHTML = '';
     const count = products.length;
-    let badgeHtml = '';
-    if (vis.engine_used === 'openai_photorealistic') {
-      badgeHtml = ' <span class="badge bg-dark text-warning border border-warning-subtle ms-1"><i class="bi bi-stars text-warning"></i> Photorealistic 8K Render</span>';
-    } else if (vis.ai_intelligence_used) {
-      badgeHtml = ' <span class="badge bg-dark text-warning border ms-1"><i class="bi bi-stars"></i> OpenAI Vision Guided</span>';
+    let badgeHtml = ' <span class="badge bg-dark text-success border ms-1"><i class="bi bi-check2-circle text-success"></i> Real Room 100% &bull; Photoreal Grounded</span>';
+    if (vis.ai_intelligence_used) {
+      badgeHtml = ' <span class="badge bg-dark text-warning border ms-1"><i class="bi bi-stars text-warning"></i> Real Room 100% &bull; GPT-4o Guided</span>';
     }
     resultProductsHeader.innerHTML = `${count} Product${count > 1 ? 's' : ''} Placed ${badgeHtml}`;
 

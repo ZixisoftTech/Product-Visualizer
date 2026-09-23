@@ -118,43 +118,18 @@ class Regenerate extends BaseController
         $genAbsPath = $genDir . '/' . $genFileName;
         $genRelPath = 'uploads/generated/' . $genFileName;
 
-        $openAI = new OpenAIService();
-        $engineUsed = 'spatial_engine';
-        $aiPromptUsed = '';
-        $compositeOk = false;
+        $engineUsed = 'spatial_photoreal_engine';
 
-        if ($openAI->isConfigured()) {
-            $aiGenResult = $openAI->generatePhotorealisticInterior(
-                $hallAbsPath,
-                $productsList,
-                $genAbsPath,
-                $roomDims,
-                $placementMode,
-                $newInstructions ?: $newPlacement,
-                $allAdjustments
-            );
-
-            if ($aiGenResult['success'] && file_exists($genAbsPath) && filesize($genAbsPath) > 1000) {
-                $compositeOk = true;
-                $engineUsed = 'openai_photorealistic';
-                $aiPromptUsed = $aiGenResult['ai_prompt'] ?? '';
-            } else {
-                log_message('warning', '[OpenAI Regenerate Fallback] Reverting to Spatial Engine composite: ' . ($aiGenResult['error'] ?? 'Unknown error'));
-            }
-        }
-
-        if (!$compositeOk) {
-            $compositeOk = ImageProcessor::createMultiProductComposite(
-                $hallAbsPath,
-                $productsList,
-                $genAbsPath,
-                $roomDims,
-                $placementMode,
-                $tapX !== null ? (float) $tapX : null,
-                $tapY !== null ? (float) $tapY : null,
-                $allAdjustments
-            );
-        }
+        $compositeOk = ImageProcessor::createMultiProductComposite(
+            $hallAbsPath,
+            $productsList,
+            $genAbsPath,
+            $roomDims,
+            $placementMode,
+            $tapX !== null ? (float) $tapX : null,
+            $tapY !== null ? (float) $tapY : null,
+            $allAdjustments
+        );
 
         $imageData = null;
         if ($compositeOk && file_exists($genAbsPath)) {

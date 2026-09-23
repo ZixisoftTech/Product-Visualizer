@@ -132,30 +132,44 @@ function isolateProductBackground(canvas) {
     return;
   }
 
-  // 2. Sample border colors to build background palette
-  let bgR = 0, bgG = 0, bgB = 0, samples = 0;
-  const borderStep = Math.max(1, Math.floor(Math.min(w, h) / 40));
+  // 2. Multi-Zone Border Sampling (Wall Palette vs Floor/Rug Palette)
+  // Showroom photos have different background colors on top (wall) vs bottom (floor/rug)
+  let topR = 0, topG = 0, topB = 0, topSamples = 0;
+  let botR = 0, botG = 0, botB = 0, botSamples = 0;
+  let leftR = 0, leftG = 0, leftB = 0, leftSamples = 0;
+  let rightR = 0, rightG = 0, rightB = 0, rightSamples = 0;
 
-  for (let x = 0; x < w; x += borderStep) {
-    const tIdx = x * 4;
-    const bIdx = ((h - 1) * w + x) * 4;
-    bgR += data[tIdx] + data[bIdx];
-    bgG += data[tIdx + 1] + data[bIdx + 1];
-    bgB += data[tIdx + 2] + data[bIdx + 2];
-    samples += 2;
+  const step = Math.max(1, Math.floor(Math.min(w, h) / 30));
+
+  // Top border (Wall)
+  for (let x = 0; x < w; x += step) {
+    const idx = x * 4;
+    topR += data[idx]; topG += data[idx + 1]; topB += data[idx + 2];
+    topSamples++;
   }
-  for (let y = 0; y < h; y += borderStep) {
-    const lIdx = (y * w) * 4;
-    const rIdx = (y * w + (w - 1)) * 4;
-    bgR += data[lIdx] + data[rIdx];
-    bgG += data[lIdx + 1] + data[rIdx + 1];
-    bgB += data[lIdx + 2] + data[rIdx + 2];
-    samples += 2;
+  // Bottom border (Floor/Rug)
+  for (let x = 0; x < w; x += step) {
+    const idx = ((h - 1) * w + x) * 4;
+    botR += data[idx]; botG += data[idx + 1]; botB += data[idx + 2];
+    botSamples++;
+  }
+  // Left border
+  for (let y = 0; y < h; y += step) {
+    const idx = (y * w) * 4;
+    leftR += data[idx]; leftG += data[idx + 1]; leftB += data[idx + 2];
+    leftSamples++;
+  }
+  // Right border
+  for (let y = 0; y < h; y += step) {
+    const idx = (y * w + (w - 1)) * 4;
+    rightR += data[idx]; rightG += data[idx + 1]; rightB += data[idx + 2];
+    rightSamples++;
   }
 
-  const avgR = bgR / Math.max(1, samples);
-  const avgG = bgG / Math.max(1, samples);
-  const avgB = bgB / Math.max(1, samples);
+  const avgTop = [topR / topSamples, topG / topSamples, topB / topSamples];
+  const avgBot = [botR / botSamples, botG / botSamples, botB / botSamples];
+  const avgLeft = [leftR / leftSamples, leftG / leftSamples, leftB / leftSamples];
+  const avgRight = [rightR / rightSamples, rightG / rightSamples, rightB / rightSamples];
 
   // 3. Flood Fill BFS from outer boundaries inward
   const visited = new Uint8Array(w * h); // 0: unvisited, 1: background, 2: foreground
@@ -163,24 +177,20 @@ function isolateProductBackground(canvas) {
   let qHead = 0;
   let qTail = 0;
 
-  // Push all border pixels as seeds
+  // Push all 4 outer borders as initial seeds
   for (let x = 0; x < w; x++) {
-    queue[qTail++] = x; // y = 0
-    visited[x] = 1;
-    const bIdx = (h - 1) * w + x;
-    queue[qTail++] = bIdx; // y = h - 1
-    visited[bIdx] = 1;
+    queue[qTail++] = x; visited[x] = 1; // Top
+    const b = (h - 1) * w + x;
+    queue[qTail++] = b; visited[b] = 1; // Bottom
   }
   for (let y = 1; y < h - 1; y++) {
-    const lIdx = y * w;
-    queue[qTail++] = lIdx; // x = 0
-    visited[lIdx] = 1;
-    const rIdx = y * w + (w - 1);
-    queue[qTail++] = rIdx; // x = w - 1
-    visited[rIdx] = 1;
+    const l = y * w;
+    queue[qTail++] = l; visited[l] = 1; // Left
+    const r = y * w + (w - 1);
+    queue[qTail++] = r; visited[r] = 1; // Right
   }
 
-  const colorTolerance = 48; // Max color difference from local / border background
+  const baseTolerance = 56;
 
   while (qHead < qTail) {
     const curr = queue[qHead++];
@@ -192,7 +202,6 @@ function isolateProductBackground(canvas) {
     const cg = data[cIdx + 1];
     const cb = data[cIdx + 2];
 
-    // Check 4 neighbors (Up, Down, Left, Right)
     const neighbors = [
       cx > 0 ? curr - 1 : -1,
       cx < w - 1 ? curr + 1 : -1,
@@ -204,36 +213,55 @@ function isolateProductBackground(canvas) {
       const n = neighbors[i];
       if (n === -1 || visited[n] !== 0) continue;
 
+      const nx = n % w;
+      const ny = Math.floor(n / w);
       const nIdx = n * 4;
       const nr = data[nIdx];
       const ng = data[nIdx + 1];
       const nb = data[nIdx + 2];
 
-      // Distance from global border background average
-      const distFromAvg = Math.sqrt(
-        (nr - avgR) ** 2 +
-        (ng - avgG) ** 2 +
-        (nb - avgB) ** 2
+      // Select reference background palette based on spatial location
+      let refBg = avgTop;
+      if (ny > h * 0.60) {
+        refBg = avgBot; // Floor / Rug palette
+      } else if (nx < w * 0.25) {
+        refBg = avgLeft;
+      } else if (nx > w * 0.75) {
+        refBg = avgRight;
+      }
+
+      // Distance from corresponding background palette
+      const distFromBg = Math.sqrt(
+        (nr - refBg[0]) ** 2 +
+        (ng - refBg[1]) ** 2 +
+        (nb - refBg[2]) ** 2
       );
 
-      // Distance from immediate neighbor pixel (smooth gradient check)
+      // Distance from neighboring background pixel (smooth gradient / shadows)
       const distFromNeighbor = Math.sqrt(
         (nr - cr) ** 2 +
         (ng - cg) ** 2 +
         (nb - cb) ** 2
       );
 
-      // Showroom studio light background detection (low saturation neutral tint)
+      // Studio neutral tone check (low chroma neutral gray/white/cream)
       const maxC = Math.max(nr, ng, nb);
       const minC = Math.min(nr, ng, nb);
-      const isNeutralStudio = (maxC - minC < 32) && (nr > 135 && ng > 135 && nb > 135);
+      const isNeutralStudio = (maxC - minC < 30) && (
+        (nr > 160 && ng > 160 && nb > 160) || // Light wall
+        (ny > h * 0.68 && distFromNeighbor < 42) // Showroom floor/rug
+      );
 
-      const isBackgroundPixel = (distFromAvg < colorTolerance * 1.35) ||
-        (distFromNeighbor < colorTolerance * 0.70 && distFromAvg < colorTolerance * 1.6) ||
-        (isNeutralStudio && distFromNeighbor < colorTolerance * 0.90);
+      // Showroom floor gradient detection (gradual shadow on the floor)
+      const isFloorGradient = (ny > h * 0.65) && (distFromNeighbor < 32);
 
-      if (isBackgroundPixel) {
-        visited[n] = 1; // Mark as background
+      const isBackground = (distFromBg < baseTolerance * 1.4) ||
+        (distFromNeighbor < baseTolerance * 0.75 && distFromBg < baseTolerance * 1.9) ||
+        (isNeutralStudio && distFromNeighbor < baseTolerance * 0.95) ||
+        isFloorGradient;
+
+      if (isBackground) {
+        visited[n] = 1;
         queue[qTail++] = n;
       } else {
         visited[n] = 2; // Hit edge of furniture
@@ -241,19 +269,18 @@ function isolateProductBackground(canvas) {
     }
   }
 
-  // 4. Apply Alpha Mask and Edge Feathering
+  // 4. Apply Alpha Transparency Mask
   for (let i = 0; i < w * h; i++) {
     if (visited[i] === 1) {
-      data[i * 4 + 3] = 0; // Strictly transparent
+      data[i * 4 + 3] = 0; // Pure transparent
     }
   }
 
-  // Soft edge anti-aliasing on transition boundary
+  // 5. Anti-aliasing Edge Feathering on Transition Boundary
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const idx = y * w + x;
       if (visited[idx] !== 1) {
-        // Count background neighbors
         let bgNeighbors = 0;
         if (visited[idx - 1] === 1) bgNeighbors++;
         if (visited[idx + 1] === 1) bgNeighbors++;
@@ -262,7 +289,7 @@ function isolateProductBackground(canvas) {
 
         if (bgNeighbors > 0) {
           const pIdx = idx * 4;
-          data[pIdx + 3] = Math.round(data[pIdx + 3] * (1 - (bgNeighbors * 0.22)));
+          data[pIdx + 3] = Math.round(data[pIdx + 3] * (1 - (bgNeighbors * 0.20)));
         }
       }
     }

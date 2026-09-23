@@ -53,73 +53,75 @@ class SpatialEngine
 
         // 4. Perspective Camera Horizon & Floor Plane Estimation
         // In standard eye-level interior photography:
-        // Horizon line (vanishing plane) is around 38-42% from top.
-        // Floor plane starts around 40-45% from top and extends to 100% bottom.
-        $horizonY = $roomPixelH * 0.40;
-        $floorMinY = $roomPixelH * 0.42;
-        $floorMaxY = $roomPixelH * 0.90;
+        // Vanishing horizon line is around 38-42% from top.
+        // The room floor starts around 50-55% from top and extends down to 100%.
+        // The bottom of the furniture image must firmly touch this floor plane.
+        $horizonY = $roomPixelH * 0.42;
+        $floorMinY = $roomPixelH * 0.54;
+        $floorMaxY = $roomPixelH * 0.92;
 
-        // 5. Determine Placement Coordinates (Normalized 0.0 - 1.0 or pixel coordinates)
+        // 5. Determine Placement Coordinates (Normalized 0.0 - 1.0)
+        // Default to solid midground floor contact
         $finalCenterX = 0.50;
-        $finalFloorY   = 0.52; // Normalized Y coordinate on floor plane
+        $finalFloorY   = 0.66; 
 
         $effectiveTapX = $product['tap_x'] ?? $tapX;
         $effectiveTapY = $product['tap_y'] ?? $tapY;
 
         if ($placementMode === 'tap' && $effectiveTapX !== null && $effectiveTapY !== null) {
-            // MODE B: TAP TO PLACE (Convert spatial tap intention into physically grounded placement)
+            // MODE B: TAP TO PLACE (Convert user's floor tap into physically grounded placement)
             $finalCenterX = max(0.12, min(0.88, (float) $effectiveTapX));
 
-            // If user tapped on a wall (above floor plane), interpret as "against that wall/back floor"
-            if ((float) $effectiveTapY < 0.42) {
-                $finalFloorY = 0.44; // Back wall floor border
+            // If user tapped on a wall (above floor plane), interpret as "against that wall on the floor"
+            if ((float) $effectiveTapY < 0.54) {
+                $finalFloorY = 0.60; // Firmly on the back floor plane, never floating in the air
             } elseif ((float) $effectiveTapY > 0.88) {
-                $finalFloorY = 0.85; // Foreground floor
+                $finalFloorY = 0.84; // Foreground floor
             } else {
                 $finalFloorY = (float) $effectiveTapY; // Direct floor contact point
             }
         } elseif (!empty($product['ai_x_pct']) && !empty($product['ai_floor_y_pct'])) {
             // AI Vision analyzed optimal placement
             $finalCenterX = max(0.12, min(0.88, (float) $product['ai_x_pct']));
-            $finalFloorY   = max(0.44, min(0.85, (float) $product['ai_floor_y_pct']));
+            $finalFloorY   = max(0.58, min(0.84, (float) $product['ai_floor_y_pct']));
         } else {
             // MODE A: AI AUTO PLACE (Interior Designer & Spatial Planner Reasoning)
             if ($totalProducts === 1) {
-                // Single piece: Centered, balanced, grounded in middle-back plane
+                // Single piece: Centered, balanced, grounded in room midground
                 $finalCenterX = 0.50;
-                $finalFloorY = 0.48;
+                $finalFloorY = 0.65;
 
                 $placementHint = strtolower((string) ($product['placement_hint'] ?? ''));
                 if (str_contains($placementHint, 'left')) {
-                    $finalCenterX = 0.25;
+                    $finalCenterX = 0.28;
                 } elseif (str_contains($placementHint, 'right')) {
-                    $finalCenterX = 0.75;
+                    $finalCenterX = 0.72;
                 } elseif (str_contains($placementHint, 'back')) {
-                    $finalFloorY = 0.44;
+                    $finalFloorY = 0.58;
                 }
             } elseif ($totalProducts === 2) {
                 if ($productIndex === 0) {
-                    // Primary piece (e.g. Sofa / Bed): Left-center
-                    $finalCenterX = 0.32;
-                    $finalFloorY = 0.46;
+                    // Primary piece (e.g. Sofa / Bed): Left-center midground
+                    $finalCenterX = 0.35;
+                    $finalFloorY = 0.64;
                 } else {
                     // Secondary piece (e.g. Table / Chair): Right-center, slightly forward
                     $finalCenterX = 0.72;
-                    $finalFloorY = 0.52;
+                    $finalFloorY = 0.72;
                 }
             } else { // 3 products
                 if ($productIndex === 0) {
-                    // Main central piece (e.g. Sofa / Bed): Back-center
-                    $finalCenterX = 0.50;
-                    $finalFloorY = 0.44;
+                    // Main central piece (e.g. Sofa / Bed): Back-center floor
+                    $finalCenterX = 0.46;
+                    $finalFloorY = 0.62;
                 } elseif ($productIndex === 1) {
                     // Side accent (e.g. Chair): Left
                     $finalCenterX = 0.20;
-                    $finalFloorY = 0.50;
+                    $finalFloorY = 0.72;
                 } else {
                     // Complementary piece (e.g. Table / Coffee table): Right foreground
-                    $finalCenterX = 0.74;
-                    $finalFloorY = 0.54;
+                    $finalCenterX = 0.70;
+                    $finalFloorY = 0.76;
                 }
             }
         }
@@ -134,9 +136,9 @@ class SpatialEngine
         $finalCenterX += $offsetX;
         $finalFloorY   += $offsetY;
 
-        // Keep within safe room bounds
+        // Keep strictly within grounded room floor bounds (never float above floor baseboard)
         $finalCenterX = max(0.10, min(0.90, $finalCenterX));
-        $finalFloorY   = max(0.42, min(0.88, $finalFloorY));
+        $finalFloorY   = max(0.56, min(0.88, $finalFloorY));
 
         // 6. Calculate Perspective Depth & Projected Scale
         $depthProgression = ($finalFloorY * $roomPixelH - $floorMinY) / max(1.0, ($floorMaxY - $floorMinY));

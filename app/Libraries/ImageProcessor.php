@@ -115,6 +115,9 @@ class ImageProcessor
         $count = count($products);
         $shadowElements = [];
         $productElements = [];
+        $reflectionElements = [];
+
+        $shadowAngle = (float) ($adjustments['shadow_angle_deg'] ?? 15);
 
         foreach ($products as $idx => $prod) {
             $pPath = $prod['path'] ?? '';
@@ -157,15 +160,30 @@ class ImageProcessor
             $rx = $spatial['shadow_rx'];
             $ry = $spatial['shadow_ry'];
 
-            // Deep contact occlusion core (darker, tighter directly underneath)
-            $coreRx = (int) round($rx * 0.75);
-            $coreRy = (int) round($ry * 0.60);
-            $shadowElements[] = '    <ellipse cx="' . $cx . '" cy="' . $cy . '" rx="' . $coreRx . '" ry="' . $coreRy . '" fill="rgba(15,12,10,0.65)" filter="url(#coreShadow)" />';
+            $groundY = $top + $targetH;
+            $contactW = (int) round($targetW * 0.88);
+            $contactRx = (int) round($contactW / 2);
 
-            // Ambient diffused floor shadow
-            $shadowElements[] = '    <ellipse cx="' . $cx . '" cy="' . $cy . '" rx="' . $rx . '" ry="' . $ry . '" fill="rgba(25,20,16,0.38)" filter="url(#ambientShadow)" />';
+            // 1. Core Contact Occlusion (tighter, dark crack beneath furniture legs)
+            $shadowElements[] = '    <ellipse cx="' . $cx . '" cy="' . ($groundY - 1) . '" rx="' . $contactRx . '" ry="4" fill="rgba(8,6,4,0.85)" filter="url(#contactOcclusion)" />';
 
-            // Product image element with optional subtle rotation transform around its center
+            // 2. Directional Floor Cast Shadow (shifted with room lighting angle)
+            $castShiftX = (int) round(tan(deg2rad($shadowAngle)) * ($ry * 0.9));
+            $castCx = $cx + $castShiftX;
+            $castCy = (int) round($groundY + ($ry * 0.12));
+            $shadowElements[] = '    <ellipse cx="' . $castCx . '" cy="' . $castCy . '" rx="' . (int)round($rx * 1.05) . '" ry="' . (int)round($ry * 0.80) . '" fill="rgba(18,14,10,0.48)" filter="url(#directionalShadow)" />';
+
+            // 3. Ambient Floor Penumbra (diffuse ceiling bounce spread)
+            $shadowElements[] = '    <ellipse cx="' . $cx . '" cy="' . ($groundY + 4) . '" rx="' . (int)round($rx * 1.35) . '" ry="' . (int)round($ry * 1.25) . '" fill="rgba(30,24,18,0.22)" filter="url(#ambientPenumbra)" />';
+
+            // 4. Subtle Floor Bounce Reflection for polished/wood floors
+            $reflH = (int) round($targetH * 0.28);
+            $reflTop = $groundY - 1;
+            $reflectionElements[] = '    <g opacity="0.08" clip-path="url(#reflClip_' . $idx . ')">'
+                . '<image href="data:' . $pMime . ';base64,' . $pB64 . '" x="' . $left . '" y="' . $top . '" width="' . $targetW . '" height="' . $targetH . '" preserveAspectRatio="xMidYMid meet" transform="translate(0, ' . ($groundY * 2) . ') scale(1, -1)" />'
+                . '</g>';
+
+            // Product image element with optional rotation transform around its center
             if ($rotation != 0) {
                 $pCenterCenterX = $left + ($targetW / 2);
                 $pCenterCenterY = $top + ($targetH / 2);
@@ -174,27 +192,49 @@ class ImageProcessor
                 $transform = '';
             }
 
-            $productElements[] = '    <image href="data:' . $pMime . ';base64,' . $pB64 . '" x="' . $left . '" y="' . $top . '" width="' . $targetW . '" height="' . $targetH . '" preserveAspectRatio="xMidYMid meet"' . $transform . ' />';
+            $productElements[] = '    <image href="data:' . $pMime . ';base64,' . $pB64 . '" x="' . $left . '" y="' . $top . '" width="' . $targetW . '" height="' . $targetH . '" preserveAspectRatio="xMidYMid meet"' . $transform . ' filter="url(#roomLightHarmonize)" />';
+        }
+
+        // Reflection clip rects
+        $reflClips = [];
+        foreach ($products as $idx => $prod) {
+            $pPath = $prod['path'] ?? '';
+            if (!file_exists($pPath)) continue;
+            $reflClips[] = '    <clipPath id="reflClip_' . $idx . '"><rect x="0" y="' . ($roomH * 0.50) . '" width="' . $roomW . '" height="' . ($roomH * 0.50) . '" /></clipPath>';
         }
 
         $svg = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ' . $roomW . ' ' . $roomH . '" width="' . $roomW . '" height="' . $roomH . '">' . "\n"
             . '  <defs>' . "\n"
-            . '    <filter id="coreShadow" x="-30%" y="-30%" width="160%" height="160%">' . "\n"
-            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="6" />' . "\n"
+            . '    <!-- Contact Occlusion Filter (sharp, tight contact underneath furniture) -->' . "\n"
+            . '    <filter id="contactOcclusion" x="-20%" y="-50%" width="140%" height="200%">' . "\n"
+            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" />' . "\n"
             . '    </filter>' . "\n"
-            . '    <filter id="ambientShadow" x="-50%" y="-50%" width="200%" height="200%">' . "\n"
-            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="16" />' . "\n"
+            . '    <!-- Directional Cast Shadow Filter (soft floor shadow) -->' . "\n"
+            . '    <filter id="directionalShadow" x="-30%" y="-40%" width="160%" height="180%">' . "\n"
+            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="9" />' . "\n"
             . '    </filter>' . "\n"
+            . '    <!-- Ambient Penumbra Filter (broad floor spread) -->' . "\n"
+            . '    <filter id="ambientPenumbra" x="-50%" y="-50%" width="200%" height="200%">' . "\n"
+            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="20" />' . "\n"
+            . '    </filter>' . "\n"
+            . '    <!-- Subtle Room Light Color Harmonizer -->' . "\n"
+            . '    <filter id="roomLightHarmonize">' . "\n"
+            . '      <feColorMatrix type="matrix" values="1.01 0 0 0 0.01  0 1.00 0 0 0.005  0 0 0.98 0 0  0 0 0 1 0" />' . "\n"
+            . '    </filter>' . "\n"
+            . implode("\n", $reflClips) . "\n"
             . '  </defs>' . "\n"
-            . '  <!-- Customer Real Room (100% Unchanged) -->' . "\n"
+            . '  <!-- Customer Real Room (100% Immutable Actual Photo) -->' . "\n"
             . '  <image href="data:' . $roomMime . ';base64,' . $roomB64 . '" width="' . $roomW . '" height="' . $roomH . '" preserveAspectRatio="none" />' . "\n"
-            . '  <!-- Floor Contact Shadows (Multi-layered Occlusion) -->' . "\n"
+            . '  <!-- Floor Bounce Reflections -->' . "\n"
+            . implode("\n", $reflectionElements) . "\n"
+            . '  <!-- Floor Contact Shadows (Multi-tier Ambient Occlusion + Directional Shadow) -->' . "\n"
             . implode("\n", $shadowElements) . "\n"
-            . '  <!-- Authoritative Isolated Products -->' . "\n"
+            . '  <!-- Authoritative Customer Products (100% Real Piece Placed on Floor) -->' . "\n"
             . implode("\n", $productElements) . "\n"
             . '</svg>';
 
         return file_put_contents($outputPath, $svg) !== false;
     }
 }
+
