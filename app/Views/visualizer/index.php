@@ -390,6 +390,15 @@
         </div>
       </div>
 
+      <!-- Designer Note & Engine Badge -->
+      <div id="designerNoteCard" class="card card-custom p-3 mb-3 border-0 d-none" style="background: #fdfbf7; border-left: 3px solid #d4af37 !important;">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-stars text-warning"></i>
+          <span class="small fw-bold text-dark">AI Interior Designer Note</span>
+        </div>
+        <p id="designerNoteText" class="small text-muted mb-0" style="font-size: 0.8rem; line-height: 1.4;"></p>
+      </div>
+
       <!-- Products Used Thumbnails -->
       <div class="card card-custom p-3 mb-3 bg-light border-0">
         <div id="resultProductsHeader" class="small fw-bold text-dark mb-2">Products Placed</div>

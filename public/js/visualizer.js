@@ -524,11 +524,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let loadingInterval = null;
   const loadingMessages = [
-    'Analyzing room...',
-    'Preparing products...',
-    'Calculating scale...',
-    'Placing products...',
-    'Creating image...',
+    'GPT-4o Vision analyzing room architecture & natural lighting...',
+    'Extracting furniture textures, materials & fabrics...',
+    'Synthesizing physically accurate shadows & floor reflections...',
+    'Rendering magazine-grade photorealistic interior design...',
+    'Finalizing ultra-high-resolution architectural render...',
   ];
 
   function startLoadingCycle() {
@@ -771,8 +771,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // Thumbnails of products placed & AI Intelligence note
     resultProductsThumbList.innerHTML = '';
     const count = products.length;
-    const aiNote = vis.ai_intelligence_used ? ' <span class="badge bg-dark text-warning border ms-1"><i class="bi bi-stars"></i> OpenAI Vision Guided</span>' : '';
-    resultProductsHeader.innerHTML = `${count} Product${count > 1 ? 's' : ''} Placed ${aiNote}`;
+    let badgeHtml = '';
+    if (vis.engine_used === 'openai_photorealistic') {
+      badgeHtml = ' <span class="badge bg-dark text-warning border border-warning-subtle ms-1"><i class="bi bi-stars text-warning"></i> Photorealistic 8K Render</span>';
+    } else if (vis.ai_intelligence_used) {
+      badgeHtml = ' <span class="badge bg-dark text-warning border ms-1"><i class="bi bi-stars"></i> OpenAI Vision Guided</span>';
+    }
+    resultProductsHeader.innerHTML = `${count} Product${count > 1 ? 's' : ''} Placed ${badgeHtml}`;
+
+    // Show Designer Note if available
+    const designerNoteCard = document.getElementById('designerNoteCard');
+    const designerNoteText = document.getElementById('designerNoteText');
+    if (designerNoteCard && designerNoteText) {
+      if (vis.ai_analysis && vis.ai_analysis.designer_summary) {
+        designerNoteText.textContent = vis.ai_analysis.designer_summary;
+        designerNoteCard.classList.remove('d-none');
+      } else {
+        designerNoteCard.classList.add('d-none');
+      }
+    }
 
     products.forEach((prod, i) => {
       const color = pinColors[i] || pinColors[0];

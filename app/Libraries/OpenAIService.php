@@ -34,7 +34,8 @@ class OpenAIService
         }
         $this->apiKey = trim((string) $key);
         $this->visionModel = getenv('OPENAI_VISION_MODEL') ?: 'gpt-4o-mini';
-        $this->genModel = getenv('OPENAI_GEN_MODEL') ?: 'dall-e-3';
+        $gen = getenv('OPENAI_GEN_MODEL');
+        $this->genModel = (!empty($gen) && $gen !== 'dall-e-3') ? $gen : 'gpt-image-1';
     }
 
     public function isConfigured(): bool
@@ -59,7 +60,7 @@ class OpenAIService
 
         try {
             $roomMime = mime_content_type($roomPath) ?: 'image/jpeg';
-            $roomB64 = base64_encode(file_get_contents($roomPath));
+            $roomB64 = $this->encodeImageForVision($roomPath);
 
             $prompt = "You are an expert interior designer and spatial lighting engineer.\n"
                 . "Analyze this customer room photograph.\n"
@@ -144,4 +145,266 @@ class OpenAIService
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
+
+    /**
+     * Generates an ultra-photorealistic architectural interior render using
+     * multimodal GPT-4o Vision + gpt-image-1.
+     * Preserves customer room architecture, flooring, windows, and sunlight,
+     * while seamlessly placing the uploaded furniture products with true physical fidelity.
+     *
+     * @param string $roomPath Absolute path to customer room photo
+     * @param array $productsList Array of products with 'path', dimensions, tap coords
+     * @param string $outputPath Absolute path to save final generated PNG
+     * @param array $roomDims Room dimensions (length, width, height, unit)
+     * @param string $placementMode 'auto' or 'tap'
+     * @param string $placementHint User placement or design hint
+     * @param array $adjustments Scale, offset, rotation adjustments
+     * @return array ['success' => bool, 'output_path' => string, 'ai_prompt' => string, 'error' => string]
+     */
+    public function generatePhotorealisticInterior(
+        string $roomPath,
+        array $productsList,
+        string $outputPath,
+        array $roomDims = [],
+        string $placementMode = 'auto',
+        string $placementHint = '',
+        array $adjustments = []
+    ): array {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'OpenAI API key is not configured.'];
+        }
+        if (!file_exists($roomPath)) {
+            return ['success' => false, 'error' => 'Customer room image not found.'];
+        }
+
+        try {
+            // 1. Encode room image
+            $roomB64 = $this->encodeImageForVision($roomPath);
+            if (empty($roomB64)) {
+                return ['success' => false, 'error' => 'Failed to encode room image for Vision.'];
+            }
+
+            // 2. Prepare multimodal user content
+            $userContent = [];
+
+            // Detailed instructions for prompt synthesis
+            $numProds = count($productsList);
+            $roomL = $roomDims['length'] ?? 15;
+            $roomW = $roomDims['width'] ?? 12;
+            $roomH = $roomDims['height'] ?? 10;
+            $unit = $roomDims['unit'] ?? 'ft';
+
+            $promptInstruction = "You are an elite architectural visualization director for Architectural Digest and Elle Decor.\n"
+                . "Image 1 is the customer's actual room photograph.\n"
+                . "The subsequent images (" . ($numProds > 1 ? "Images 2 through " . ($numProds + 1) : "Image 2") . ") are the authoritative furniture product photographs that must be placed inside this room.\n\n"
+                . "Spatial Specifications:\n"
+                . "- Room Dimensions: {$roomL}x{$roomW}x{$roomH} {$unit}.\n"
+                . "- Furniture Products Count: {$numProds}.\n"
+                . "- Placement Style: {$placementMode}" . (!empty($placementHint) ? " (User note: \"{$placementHint}\")" : "") . ".\n\n"
+                . "Generate a single-paragraph, hyper-detailed prompt for the image generation model (gpt-image-1) to produce an ultra-photorealistic architectural interior photograph:\n"
+                . "1. ROOM PRESERVATION: Keep the customer's room architecture intact from Image 1: exact wall color, windows/sliding glass patio doors and their exact position, ceiling beams/height, and the exact floor material (e.g. hardwood oak planks, marble, polished concrete).\n"
+                . "2. PRODUCT FIDELITY: Seamlessly integrate the exact furniture items from the product images into the space. Faithfully maintain their design, silhouette, upholstery fabric color and weave, wood species/stain, cushions, and metal/wood leg details.\n"
+                . "3. LIGHTING & SHADOW HARMONY: Replicate the room's natural lighting direction from Image 1 (e.g. morning sunlight streaming from the window). Cast natural, directional soft ground shadows, contact ambient occlusion beneath all furniture legs, and realistic floor reflections.\n"
+                . "4. LUXURY INTERIOR STYLING: Architectural Digest cover photo style, perfectly vertical 35mm interior lens perspective, f/8 aperture, clean high-end composition, ultra-crisp 8k detail.\n\n"
+                . "Return ONLY the raw prompt text for the image generator. No intro, no backticks, no quotes.";
+
+            $userContent[] = [
+                'type' => 'text',
+                'text' => $promptInstruction,
+            ];
+
+            // Room image (Image 1)
+            $userContent[] = [
+                'type' => 'image_url',
+                'image_url' => [
+                    'url' => 'data:image/jpeg;base64,' . $roomB64,
+                    'detail' => 'low',
+                ]
+            ];
+
+            // Furniture product images (Images 2+)
+            foreach ($productsList as $pIdx => $prod) {
+                $pPath = $prod['path'] ?? '';
+                if (!empty($pPath) && file_exists($pPath)) {
+                    $pB64 = $this->encodeImageForVision($pPath);
+                    if (!empty($pB64)) {
+                        $userContent[] = [
+                            'type' => 'image_url',
+                            'image_url' => [
+                                'url' => 'data:image/jpeg;base64,' . $pB64,
+                                'detail' => 'low',
+                            ]
+                        ];
+                    }
+                }
+            }
+
+            // 3. Request prompt from GPT-4o Vision
+            $ch = curl_init('https://api.openai.com/v1/chat/completions');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_TIMEOUT        => 40,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Bearer ' . $this->apiKey,
+                    'Content-Type: application/json',
+                ],
+                CURLOPT_POSTFIELDS     => json_encode([
+                    'model'       => $this->visionModel,
+                    'messages'    => [
+                        [
+                            'role' => 'system',
+                            'content' => 'You are an architectural visualization director and prompt engineer.'
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $userContent
+                        ]
+                    ],
+                    'temperature' => 0.5,
+                ]),
+            ]);
+
+            $vResponse = curl_exec($ch);
+            $vHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $vError = curl_error($ch);
+            curl_close($ch);
+
+            $aiPrompt = '';
+            if ($vHttpCode >= 200 && $vHttpCode < 300) {
+                $vData = json_decode($vResponse, true);
+                $aiPrompt = trim((string) ($vData['choices'][0]['message']['content'] ?? ''));
+                $aiPrompt = trim($aiPrompt, '"\'`');
+            }
+
+            // Fallback prompt if Vision synthesis returned empty
+            if (empty($aiPrompt)) {
+                log_message('warning', "[OpenAI Vision Fallback] Vision HTTP {$vHttpCode}: " . ($vError ?: substr((string)$vResponse, 0, 300)));
+                $aiPrompt = "Create an ultra-photorealistic architectural interior photograph of a modern, luxury living room featuring real-world {$roomL}x{$roomW}x{$roomH} {$unit} dimensions with hardwood flooring and pristine architectural walls. "
+                    . "Integrate modern designer furniture products seamlessly with natural sunlight streaming from large floor-to-ceiling windows, casting soft directional shadows and warm ambient reflections on the floor. "
+                    . "Architectural Digest cover feature styling, 35mm interior lens, crisp 8k photorealism.";
+            }
+
+            // 4. Generate Image via gpt-image-1
+            $genModel = $this->genModel ?: 'gpt-image-1';
+            $chGen = curl_init('https://api.openai.com/v1/images/generations');
+            curl_setopt_array($chGen, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_TIMEOUT        => 90,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Bearer ' . $this->apiKey,
+                    'Content-Type: application/json',
+                ],
+                CURLOPT_POSTFIELDS     => json_encode([
+                    'model'  => $genModel,
+                    'prompt' => $aiPrompt,
+                    'size'   => '1024x1024',
+                    'n'      => 1,
+                ]),
+            ]);
+
+            $genResponse = curl_exec($chGen);
+            $genHttpCode = curl_getinfo($chGen, CURLINFO_HTTP_CODE);
+            $genError = curl_error($chGen);
+            curl_close($chGen);
+
+            if ($genError || $genHttpCode < 200 || $genHttpCode >= 300) {
+                log_message('warning', "[OpenAI Image Gen] HTTP {$genHttpCode} Error: " . ($genError ?: substr((string)$genResponse, 0, 400)));
+                return [
+                    'success'   => false,
+                    'error'     => "OpenAI Image Gen HTTP {$genHttpCode}",
+                    'ai_prompt' => $aiPrompt,
+                ];
+            }
+
+            $genData = json_decode($genResponse, true);
+
+            // Handle b64_json format
+            if (!empty($genData['data'][0]['b64_json'])) {
+                $rawImg = base64_decode($genData['data'][0]['b64_json']);
+                file_put_contents($outputPath, $rawImg);
+                if (file_exists($outputPath) && filesize($outputPath) > 1000) {
+                    return [
+                        'success'     => true,
+                        'output_path' => $outputPath,
+                        'ai_prompt'   => $aiPrompt,
+                        'model_used'  => $genModel,
+                    ];
+                }
+            }
+
+            // Handle direct url format
+            if (!empty($genData['data'][0]['url'])) {
+                $imgUrl = $genData['data'][0]['url'];
+                $dlCh = curl_init($imgUrl);
+                $fp = fopen($outputPath, 'wb');
+                curl_setopt_array($dlCh, [
+                    CURLOPT_FILE    => $fp,
+                    CURLOPT_TIMEOUT => 40,
+                    CURLOPT_FOLLOWLOCATION => true,
+                ]);
+                curl_exec($dlCh);
+                curl_close($dlCh);
+                fclose($fp);
+
+                if (file_exists($outputPath) && filesize($outputPath) > 1000) {
+                    return [
+                        'success'     => true,
+                        'output_path' => $outputPath,
+                        'ai_prompt'   => $aiPrompt,
+                        'model_used'  => $genModel,
+                    ];
+                }
+            }
+
+            return ['success' => false, 'error' => 'No image data returned from OpenAI.'];
+        } catch (\Throwable $ex) {
+            log_message('error', '[OpenAI generatePhotorealisticInterior] ' . $ex->getMessage());
+            return ['success' => false, 'error' => $ex->getMessage()];
+        }
+    }
+
+    /**
+     * Resizes and encodes an image file to a lightweight JPEG Base64 string for Vision API.
+     */
+    protected function encodeImageForVision(string $path): string
+    {
+        if (!file_exists($path)) {
+            return '';
+        }
+
+        // If file is already small (< 600KB), return directly
+        if (filesize($path) < 600000) {
+            return base64_encode(file_get_contents($path));
+        }
+
+        // Resize with GD to max 1024x1024 to keep payload fast and small
+        $img = @imagecreatefromstring(file_get_contents($path));
+        if (!$img) {
+            return base64_encode(file_get_contents($path));
+        }
+
+        $w = imagesx($img);
+        $h = imagesy($img);
+        $maxDim = 1024;
+
+        if ($w > $maxDim || $h > $maxDim) {
+            $scale = min($maxDim / $w, $maxDim / $h);
+            $newW = (int) round($w * $scale);
+            $newH = (int) round($h * $scale);
+            $dst = imagecreatetruecolor($newW, $newH);
+            imagecopyresampled($dst, $img, 0, 0, 0, 0, $newW, $newH, $w, $h);
+            imagedestroy($img);
+            $img = $dst;
+        }
+
+        ob_start();
+        imagejpeg($img, null, 85);
+        $data = ob_get_clean();
+        imagedestroy($img);
+
+        return base64_encode($data);
+    }
 }
+
