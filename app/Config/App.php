@@ -16,7 +16,19 @@ class App extends BaseConfig
      *
      * E.g., http://example.com/
      */
-    public string $baseURL = '/';
+    public string $baseURL = 'https://rajgarhwala-ai.vercel.app/';
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        if (!empty($_SERVER['HTTP_HOST'])) {
+            $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+                     (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+                     ? 'https' : 'http';
+            $this->baseURL = $proto . '://' . $_SERVER['HTTP_HOST'] . '/';
+        }
+    }
 
     /**
      * Allowed Hostnames in the Site URL other than the hostname in the baseURL.
