@@ -3,6 +3,8 @@
 // Enable error display during debugging on serverless
 ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');
+ini_set('memory_limit', '256M');
+ini_set('max_execution_time', '120');
 error_reporting(E_ALL);
 
 // Normalize SCRIPT_NAME on Vercel serverless so CodeIgniter 4 resolves routes accurately

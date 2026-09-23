@@ -5,10 +5,13 @@
  * - Furniture product: isolates background and preserves full PNG transparency.
  */
 
-async function compressImageForUpload(file, maxDimension = 1600, isProduct = false, quality = 0.84) {
+async function compressImageForUpload(file, maxDimension = 1200, isProduct = false, quality = 0.82) {
   if (!file || !file.type.startsWith('image/')) {
     return file;
   }
+
+  // Optimize target max dimension: 800px is crystal clear for isolated products, 1200px for room
+  const targetMaxDim = isProduct ? 800 : Math.min(1200, maxDimension);
 
   return new Promise((resolve) => {
     const img = new Image();
@@ -20,13 +23,13 @@ async function compressImageForUpload(file, maxDimension = 1600, isProduct = fal
       let width = img.naturalWidth || img.width;
       let height = img.naturalHeight || img.height;
 
-      if (width > maxDimension || height > maxDimension) {
+      if (width > targetMaxDim || height > targetMaxDim) {
         if (width > height) {
-          height = Math.round((height * maxDimension) / width);
-          width = maxDimension;
+          height = Math.round((height * targetMaxDim) / width);
+          width = targetMaxDim;
         } else {
-          width = Math.round((width * maxDimension) / height);
-          height = maxDimension;
+          width = Math.round((width * targetMaxDim) / height);
+          height = targetMaxDim;
         }
       }
 

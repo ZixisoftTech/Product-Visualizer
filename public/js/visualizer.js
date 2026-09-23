@@ -415,10 +415,18 @@ document.addEventListener('DOMContentLoaded', () => {
         body: formData,
       });
 
-      const data = await res.json().catch(() => null);
+      let data = null;
+      let text = '';
+      try {
+        text = await res.text();
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        console.warn('Response parse note:', text);
+      }
 
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || `Server responded with error (${res.status})`);
+        const errMsg = data?.error || (text && text.length < 300 && !text.includes('<html') ? text : null) || `Server responded with error (${res.status})`;
+        throw new Error(errMsg);
       }
 
       currentVisualization = data.visualization;
