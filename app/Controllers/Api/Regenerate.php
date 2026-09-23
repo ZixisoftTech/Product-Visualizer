@@ -162,7 +162,7 @@ class Regenerate extends BaseController
                     'hall_image_path'      => base_url($record['hall_image_path']),
                     'product_image_path'   => base_url($record['product_image_path']),
                     'engine_used'          => $engineUsed,
-                    'ai_prompt'            => $aiPromptUsed,
+                    'ai_prompt'            => null,
                 ]),
             ]);
         }

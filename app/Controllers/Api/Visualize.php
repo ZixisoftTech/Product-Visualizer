@@ -257,7 +257,7 @@ class Visualize extends BaseController
                         'ai_intelligence_used' => $aiUsed,
                         'ai_analysis'          => $aiAnalysis,
                         'engine_used'          => $engineUsed,
-                        'ai_prompt'            => $aiPromptUsed,
+                        'ai_prompt'            => null,
                     ]),
                 ]);
             }
