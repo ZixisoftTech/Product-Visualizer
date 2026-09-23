@@ -14,274 +14,263 @@
   <!-- Custom Luxury Showroom Style -->
   <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
+<body class="mobile-app-body">
 
-  <!-- Top Navbar / Header (can be hidden with ?hide_header=1 in native app) -->
-  <header class="bg-white border-bottom py-2 py-sm-3 sticky-top app-header">
+  <!-- Top App Header -->
+  <header class="bg-white border-bottom py-2 sticky-top app-header">
     <div class="container d-flex align-items-center justify-content-between">
       <div class="d-flex align-items-center gap-2">
-        <div class="bg-dark text-white rounded-3 p-2 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 36px; height: 36px;">
-          <i class="bi bi-house-door-fill fs-5"></i>
+        <div class="bg-dark text-white rounded-3 p-1 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+          <i class="bi bi-house-door-fill fs-6"></i>
         </div>
         <div>
-          <h1 class="h6 h5-sm mb-0 brand-title text-dark">Rajgarhwala AI</h1>
-          <p class="small text-muted mb-0 d-none d-sm-block">Visualize furniture in customer's actual room</p>
+          <h1 class="h6 mb-0 fw-bold brand-title text-dark">AI Visualizer</h1>
         </div>
       </div>
-      <div class="d-flex align-items-center gap-2">
-        <button type="button" id="headerResetBtn" class="btn btn-outline-secondary btn-sm px-2 py-1 rounded-3 d-flex align-items-center gap-1" title="Reset Form">
-          <i class="bi bi-arrow-counterclockwise"></i> <span class="d-none d-sm-inline">Reset</span>
-        </button>
-        <span class="badge px-2 py-1 px-sm-3 py-sm-2 rounded-pill font-monospace" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a !important;">
-          <i class="bi bi-stars text-warning me-1"></i> AI Active
-        </span>
+      <!-- Progress Indicator -->
+      <div class="d-flex align-items-center gap-1 font-monospace" style="font-size: 0.75rem;">
+        <span id="stepBadge1" class="step-pill active">1 Room</span>
+        <span class="text-muted">→</span>
+        <span id="stepBadge2" class="step-pill">2 Products</span>
+        <span class="text-muted">→</span>
+        <span id="stepBadge3" class="step-pill">3 Result</span>
       </div>
     </div>
   </header>
 
-  <main class="container my-3 my-sm-4" style="max-width: 860px;">
+  <main class="container my-3" style="max-width: 580px;">
 
-    <!-- Error Alert banner -->
-    <div id="errorAlert" class="alert alert-danger d-flex align-items-center mb-3 mb-sm-4 d-none shadow-sm rounded-4" role="alert">
+    <!-- Error Alert Banner -->
+    <div id="errorAlert" class="alert alert-danger d-flex align-items-center mb-3 d-none shadow-sm rounded-4" role="alert">
       <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2 fs-5"></i>
       <div id="errorMessage" class="small fw-semibold"></div>
     </div>
 
-    <!-- Showroom Workflow Notice -->
-    <div class="card card-custom p-3 mb-3 mb-sm-4 bg-light border-0">
-      <div class="d-flex gap-2 align-items-start">
-        <i class="bi bi-info-circle-fill text-warning fs-5 mt-1 flex-shrink-0"></i>
-        <div>
-          <p class="small text-secondary mb-1">
-            <strong>Showroom Workflow:</strong> Take or select photos of the customer's room & showroom piece. The AI isolates the product and <strong>preserves the customer's real room 100%</strong> without altering walls, flooring, or lighting.
-          </p>
-          <p class="small text-muted mb-0" style="font-size: 0.78rem;">
-            <i class="bi bi-phone me-1"></i><strong>App Tip:</strong> If camera does not trigger directly inside your app, verify Camera permissions are enabled for this app in Settings or select from Gallery.
-          </p>
-        </div>
+    <!-- ========================================== -->
+    <!-- SCREEN 1: ADD ROOM -->
+    <!-- ========================================== -->
+    <section id="screen1" class="app-screen">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="h5 fw-bold mb-0">Add Room</h2>
+        <span class="badge bg-light text-dark border">Step 1 of 2</span>
       </div>
-    </div>
 
-    <!-- MAIN VISUALIZER FORM -->
-    <div id="visualizerFormCard">
-
-      <!-- 1. Room Upload Card -->
-      <div class="card card-custom p-3 p-sm-4 mb-3 mb-sm-4">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <div class="d-flex align-items-center gap-2">
-            <span class="step-badge">1</span>
-            <h2 class="h6 mb-0 fw-bold">Customer Room Photo</h2>
-          </div>
-          <span class="small text-muted" style="font-size: 0.78rem;">JPG, PNG (Max 20MB)</span>
-        </div>
-
-        <!-- Room Dropzone -->
-        <div id="roomDropzone" class="upload-dropzone">
-          <div class="mb-2 text-warning fs-2"><i class="bi bi-house-heart"></i></div>
-          <h3 class="h6 fw-bold mb-1">Customer's Room or Hall</h3>
-          <p class="small text-muted mb-3 mx-auto" style="max-width: 420px; font-size: 0.82rem;">
-            Take or upload the customer's real room photo. Room structure, walls, floor, and lighting are 100% kept intact.
+      <!-- Large Room Image Upload Area -->
+      <div class="card card-custom p-3 mb-3">
+        <!-- Before Upload -->
+        <div id="roomEmptyState" class="upload-dropzone py-4">
+          <div class="mb-2 text-warning fs-1"><i class="bi bi-camera"></i></div>
+          <h3 class="h6 fw-bold mb-1">+ Add Room Photo</h3>
+          <p class="small text-muted mb-3 mx-auto" style="max-width: 340px; font-size: 0.82rem;">
+            Take or upload the customer's actual room photograph. Walls, doors, windows, and lighting are 100% preserved.
           </p>
-          <div class="d-flex justify-content-center gap-2 flex-wrap">
-            <label class="btn btn-dark btn-sm px-3 py-2 rounded-3 cursor-pointer d-flex align-items-center gap-1 shadow-sm">
+          <div class="d-flex justify-content-center gap-2">
+            <label class="btn btn-dark btn-sm px-3 py-2 rounded-3 d-flex align-items-center gap-1 shadow-sm">
               <i class="bi bi-camera-fill"></i> Take Photo
               <input type="file" id="roomCameraInput" accept="image/*" capture="environment" class="d-none">
             </label>
-            <label class="btn btn-outline-secondary btn-sm px-3 py-2 rounded-3 cursor-pointer d-flex align-items-center gap-1">
-              <i class="bi bi-image"></i> From Gallery
-              <input type="file" id="roomFileInput" accept="image/*" class="d-none">
+            <label class="btn btn-outline-secondary btn-sm px-3 py-2 rounded-3 d-flex align-items-center gap-1">
+              <i class="bi bi-image"></i> Gallery
+              <input type="file" id="roomGalleryInput" accept="image/*" class="d-none">
             </label>
           </div>
         </div>
 
-        <!-- Room Preview -->
-        <div id="roomPreviewBox" class="preview-container d-none">
-          <img id="roomPreviewImg" src="" alt="Customer Room Preview">
+        <!-- After Upload (Room Preview) -->
+        <div id="roomLoadedState" class="preview-container d-none">
+          <img id="roomPreviewImg" src="" alt="Customer Room Photo">
           <div class="preview-overlay">
-            <span class="text-white small fw-semibold"><i class="bi bi-check-circle-fill text-success me-1"></i> Room Loaded</span>
-            <button type="button" id="removeRoomBtn" class="btn btn-danger btn-sm rounded-3 py-1 px-2">
-              <i class="bi bi-trash-fill"></i> Remove
-            </button>
+            <span class="text-white small fw-semibold"><i class="bi bi-check-circle-fill text-success me-1"></i> Room Photo Loaded</span>
+            <div class="d-flex gap-1">
+              <label class="btn btn-light btn-sm rounded-3 py-1 px-2 cursor-pointer mb-0">
+                <i class="bi bi-arrow-repeat"></i> Change
+                <input type="file" id="roomChangeInput" accept="image/*" class="d-none">
+              </label>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- 2. Product Upload Card -->
-      <div class="card card-custom p-3 p-sm-4 mb-3 mb-sm-4">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <div class="d-flex align-items-center gap-2">
-            <span class="step-badge">2</span>
-            <h2 class="h6 mb-0 fw-bold">Furniture Product Photo</h2>
-          </div>
-          <span class="small text-muted" style="font-size: 0.78rem;">Auto-Isolated PNG</span>
+      <!-- Room Size Section -->
+      <div class="card card-custom p-3 mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h3 class="h6 fw-bold mb-0"><i class="bi bi-rulers me-1 text-warning"></i> Room Size</h3>
+          <span class="small text-muted font-monospace">Unit: Feet (ft)</span>
         </div>
-
-        <!-- Product Dropzone -->
-        <div id="prodDropzone" class="upload-dropzone">
-          <div class="mb-2 text-warning fs-2"><i class="bi bi-lamp"></i></div>
-          <h3 class="h6 fw-bold mb-1">Showroom Furniture Piece</h3>
-          <p class="small text-muted mb-3 mx-auto" style="max-width: 420px; font-size: 0.82rem;">
-            Photo of sofa, bed, chair, or table. Background is automatically stripped and isolated for clean placement.
-          </p>
-          <div class="d-flex justify-content-center gap-2 flex-wrap">
-            <label class="btn btn-dark btn-sm px-3 py-2 rounded-3 cursor-pointer d-flex align-items-center gap-1 shadow-sm">
-              <i class="bi bi-camera-fill"></i> Take Photo
-              <input type="file" id="prodCameraInput" accept="image/*" capture="environment" class="d-none">
-            </label>
-            <label class="btn btn-outline-secondary btn-sm px-3 py-2 rounded-3 cursor-pointer d-flex align-items-center gap-1">
-              <i class="bi bi-image"></i> From Gallery
-              <input type="file" id="prodFileInput" accept="image/*" class="d-none">
-            </label>
-          </div>
-        </div>
-
-        <!-- Product Preview -->
-        <div id="prodPreviewBox" class="preview-container d-none">
-          <img id="prodPreviewImg" src="" alt="Furniture Product Preview">
-          <div class="preview-overlay">
-            <span class="text-white small fw-semibold"><i class="bi bi-check-circle-fill text-success me-1"></i> Furniture Isolated</span>
-            <button type="button" id="removeProdBtn" class="btn btn-danger btn-sm rounded-3 py-1 px-2">
-              <i class="bi bi-trash-fill"></i> Remove
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. Dimensions Form Card -->
-      <div class="card card-custom p-3 p-sm-4 mb-3 mb-sm-4">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <div class="d-flex align-items-center gap-2">
-            <span class="step-badge">3</span>
-            <h2 class="h6 mb-0 fw-bold">Dimensions</h2>
-          </div>
-
-          <!-- Unit Selector -->
-          <div class="btn-group unit-toggle" role="group" aria-label="Dimension Unit">
-            <input type="radio" class="btn-check" name="dimension_unit" id="unitCm" value="cm" checked>
-            <label class="btn btn-outline-dark" for="unitCm">cm</label>
-
-            <input type="radio" class="btn-check" name="dimension_unit" id="unitInch" value="inch">
-            <label class="btn btn-outline-dark" for="unitInch">inch</label>
-
-            <input type="radio" class="btn-check" name="dimension_unit" id="unitFt" value="ft">
-            <label class="btn btn-outline-dark" for="unitFt">ft</label>
-          </div>
-        </div>
-
-        <div class="row g-2 g-sm-3">
-          <div class="col-4">
-            <label for="productWidth" class="form-label small fw-semibold text-secondary mb-1">Width (W)</label>
-            <input type="number" step="any" min="1" class="form-control rounded-3" id="productWidth" value="240" placeholder="e.g. 240" required inputmode="decimal">
-          </div>
-          <div class="col-4">
-            <label for="productDepth" class="form-label small fw-semibold text-secondary mb-1">Depth (D)</label>
-            <input type="number" step="any" min="1" class="form-control rounded-3" id="productDepth" value="90" placeholder="e.g. 90" required inputmode="decimal">
-          </div>
-          <div class="col-4">
-            <label for="productHeight" class="form-label small fw-semibold text-secondary mb-1">Height (H)</label>
-            <input type="number" step="any" min="1" class="form-control rounded-3" id="productHeight" value="85" placeholder="e.g. 85" required inputmode="decimal">
-          </div>
-        </div>
-        <p class="small text-muted mt-2 mb-0" style="font-size: 0.78rem;">
-          <i class="bi bi-rulers me-1"></i> Used as scale reference to preserve realistic room proportions
+        <p class="small text-muted mb-3" style="font-size: 0.8rem;">
+          Real room measurements to ensure accurate physical scale of products.
         </p>
-      </div>
-
-      <!-- 4. Placement Selector Card -->
-      <div class="card card-custom p-3 p-sm-4 mb-3 mb-sm-4">
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <span class="step-badge">4</span>
-          <h2 class="h6 mb-0 fw-bold">Placement in Room</h2>
-        </div>
-
-        <input type="hidden" id="selectedPlacement" value="Center">
 
         <div class="row g-2">
-          <div class="col-6 col-sm-3">
-            <button type="button" class="btn btn-placement active" data-placement="Center">Center</button>
+          <div class="col-4">
+            <label for="roomLength" class="form-label small fw-semibold text-secondary mb-1">Length</label>
+            <div class="input-group input-group-sm">
+              <input type="number" step="any" min="1" class="form-control rounded-start-3" id="roomLength" value="15" placeholder="15" required inputmode="decimal">
+              <span class="input-group-text rounded-end-3">ft</span>
+            </div>
           </div>
-          <div class="col-6 col-sm-3">
-            <button type="button" class="btn btn-placement" data-placement="Left">Left Side</button>
+          <div class="col-4">
+            <label for="roomWidth" class="form-label small fw-semibold text-secondary mb-1">Width</label>
+            <div class="input-group input-group-sm">
+              <input type="number" step="any" min="1" class="form-control rounded-start-3" id="roomWidth" value="12" placeholder="12" required inputmode="decimal">
+              <span class="input-group-text rounded-end-3">ft</span>
+            </div>
           </div>
-          <div class="col-6 col-sm-3">
-            <button type="button" class="btn btn-placement" data-placement="Right">Right Side</button>
-          </div>
-          <div class="col-6 col-sm-3">
-            <button type="button" class="btn btn-placement" data-placement="Against Back Wall">Back Wall</button>
-          </div>
-          <div class="col-6 col-sm-3">
-            <button type="button" class="btn btn-placement" data-placement="Against Left Wall">Left Wall</button>
-          </div>
-          <div class="col-6 col-sm-3">
-            <button type="button" class="btn btn-placement" data-placement="Against Right Wall">Right Wall</button>
-          </div>
-          <div class="col-6 col-sm-3">
-            <button type="button" class="btn btn-placement" data-placement="Corner">Corner</button>
-          </div>
-          <div class="col-6 col-sm-3">
-            <button type="button" class="btn btn-placement" data-placement="Custom">Custom</button>
+          <div class="col-4">
+            <label for="roomHeight" class="form-label small fw-semibold text-secondary mb-1">Height</label>
+            <div class="input-group input-group-sm">
+              <input type="number" step="any" min="1" class="form-control rounded-start-3" id="roomHeight" value="10" placeholder="10" required inputmode="decimal">
+              <span class="input-group-text rounded-end-3">ft</span>
+            </div>
           </div>
         </div>
-        <p class="small text-muted mt-2 mb-0" style="font-size: 0.78rem;">
-          <i class="bi bi-compass me-1"></i> Floor contact shadow and perspective scale adjust automatically
+      </div>
+
+      <!-- Continue Button -->
+      <div class="pt-2 pb-4">
+        <button type="button" id="continueToProductsBtn" class="btn btn-dark btn-lg w-100 py-3 rounded-4 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2" disabled>
+          <span>Continue</span> <i class="bi bi-arrow-right"></i>
+        </button>
+        <p id="roomValidationHint" class="text-center small text-muted mt-2 mb-0" style="font-size: 0.8rem;">
+          Please upload room photo to continue
+        </p>
+      </div>
+    </section>
+
+
+    <!-- ========================================== -->
+    <!-- SCREEN 2: ADD PRODUCTS -->
+    <!-- ========================================== -->
+    <section id="screen2" class="app-screen d-none">
+      <!-- Mini Room Summary Banner -->
+      <div class="card p-2 px-3 mb-3 bg-light border-0 rounded-4 d-flex flex-row align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+          <img id="miniRoomThumb" src="" alt="Room thumbnail" class="rounded-2" style="width: 44px; height: 36px; object-fit: cover;">
+          <div>
+            <div class="small fw-bold text-dark">Customer Room</div>
+            <div id="miniRoomDims" class="text-muted" style="font-size: 0.72rem;">15×12×10 ft</div>
+          </div>
+        </div>
+        <button type="button" id="editRoomBtn" class="btn btn-link text-decoration-none btn-sm p-0 small fw-semibold text-warning">
+          <i class="bi bi-pencil-square"></i> Change
+        </button>
+      </div>
+
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div>
+          <h2 class="h5 fw-bold mb-0">Add Products</h2>
+          <p class="small text-muted mb-0" style="font-size: 0.8rem;">Up to 3 products in one room</p>
+        </div>
+        <span id="productCountBadge" class="badge bg-dark rounded-pill px-2 py-1 small font-monospace">0 / 3 Added</span>
+      </div>
+
+      <!-- Container for Uploaded Product Cards -->
+      <div id="productsContainer" class="d-flex flex-column gap-3 mb-3"></div>
+
+      <!-- Add Product Button Box (Hidden if 3 reached) -->
+      <div id="addProductBox" class="card card-custom p-3 mb-3 border-dashed text-center">
+        <input type="file" id="newProductFileInput" accept="image/*" class="d-none">
+        <div class="py-2">
+          <div class="text-warning fs-3 mb-1"><i class="bi bi-plus-circle"></i></div>
+          <h3 class="h6 fw-bold mb-1">+ Add Product</h3>
+          <p class="small text-muted mb-3" style="font-size: 0.8rem;">
+            Take photo of showroom piece or pick from gallery. Background is removed automatically.
+          </p>
+          <div class="d-flex justify-content-center gap-2">
+            <label class="btn btn-dark btn-sm px-3 py-2 rounded-3 d-flex align-items-center gap-1 shadow-sm">
+              <i class="bi bi-camera-fill"></i> Camera
+              <input type="file" id="productCameraInput" accept="image/*" capture="environment" class="d-none">
+            </label>
+            <label class="btn btn-outline-secondary btn-sm px-3 py-2 rounded-3 d-flex align-items-center gap-1">
+              <i class="bi bi-image"></i> Gallery
+              <input type="file" id="productGalleryInput" accept="image/*" class="d-none">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Max Products Reached Notice -->
+      <div id="maxProductsNotice" class="alert alert-secondary py-2 px-3 small text-center rounded-3 d-none mb-3">
+        <i class="bi bi-check-circle-fill text-success me-1"></i> Maximum of 3 products added
+      </div>
+
+      <!-- Optional Placement Field -->
+      <div class="card card-custom p-3 mb-4">
+        <label for="optionalPlacement" class="form-label small fw-bold text-dark mb-1">
+          Placement <span class="text-muted fw-normal">(optional)</span>
+        </label>
+        <input type="text" id="optionalPlacement" class="form-control rounded-3" placeholder="Example: against left wall, or center" maxlength="150">
+        <p class="small text-muted mt-1 mb-0" style="font-size: 0.75rem;">
+          If left blank, AI automatically determines the best natural location.
         </p>
       </div>
 
-      <!-- 5. Additional Instructions Card -->
-      <div class="card card-custom p-3 p-sm-4 mb-3 mb-sm-4">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <span class="step-badge">5</span>
-          <h2 class="h6 mb-0 fw-bold">Instructions (Optional)</h2>
-        </div>
-        <div class="position-relative">
-          <textarea id="instructions" class="form-control rounded-3" rows="2" maxlength="1000" placeholder="e.g. Place facing center table, keep walking clearance"></textarea>
-          <div class="position-absolute bottom-0 end-0 p-2 small text-muted font-monospace" style="font-size: 0.72rem;"><span id="charCounter">0</span>/1000</div>
-        </div>
-      </div>
-
-      <!-- Generate Button -->
-      <div class="text-center pb-5">
-        <button type="button" id="generateBtn" class="btn btn-dark btn-lg w-100 py-3 rounded-4 fw-bold shadow-lg" disabled>
-          <span id="btnSpinner" class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
-          <i class="bi bi-stars text-warning me-1"></i>
-          <span id="btnText">Generate AI Visualization</span>
+      <!-- Bottom Actions -->
+      <div class="d-flex flex-column gap-2 pt-2 pb-4">
+        <button type="button" id="generateVisualizationBtn" class="btn btn-dark btn-lg w-100 py-3 rounded-4 fw-bold shadow-lg d-flex align-items-center justify-content-center gap-2" disabled>
+          <i class="bi bi-stars text-warning"></i>
+          <span>Generate Visualization</span>
         </button>
-        <p id="missingRequirementsText" class="small text-muted mt-2 mb-0"></p>
+        <button type="button" id="backToRoomBtn" class="btn btn-link text-muted text-decoration-none btn-sm py-1">
+          <i class="bi bi-arrow-left"></i> Back to Room Setup
+        </button>
+      </div>
+    </section>
+
+
+    <!-- ========================================== -->
+    <!-- SCREEN 3: CREATING VISUALIZATION (LOADING) -->
+    <!-- ========================================== -->
+    <section id="screen3" class="app-screen d-none text-center py-4">
+      <div class="card card-custom p-4 shadow-lg position-relative overflow-hidden" style="min-height: 420px; background: #0f172a;">
+        <!-- Blurred Room Background -->
+        <img id="loadingRoomBg" src="" alt="Room Loading Background" class="position-absolute inset-0 w-100 h-100" style="object-fit: cover; opacity: 0.28; filter: blur(6px);">
+
+        <div class="position-relative z-1 d-flex flex-column align-items-center justify-content-center my-auto py-5 text-white">
+          <!-- Animated Spinner Glow -->
+          <div class="spinner-grow text-warning mb-4" role="status" style="width: 3.5rem; height: 3.5rem;">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+
+          <h2 class="h4 fw-bold mb-2">Creating your visualization...</h2>
+          <p class="text-light-50 small mb-4" style="color: #cbd5e1; font-size: 0.9rem;">
+            Placing your products in the room.
+          </p>
+
+          <!-- Cycling Status Message -->
+          <div class="px-3 py-2 rounded-pill font-monospace shadow-sm" style="background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.2); font-size: 0.85rem;">
+            <i class="bi bi-magic text-warning me-1"></i> <span id="loadingStatusText">Analyzing room...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ========================================== -->
+    <!-- SCREEN 4: FINAL AI VISUALIZATION -->
+    <!-- ========================================== -->
+    <section id="screen4" class="app-screen d-none">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h2 class="h5 fw-bold mb-0">Your Result</h2>
+        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small">
+          <i class="bi bi-check-circle-fill me-1"></i> Real Room Kept 100%
+        </span>
       </div>
 
-    </div>
-
-    <!-- RESULT VIEWER CARD (HIDDEN INITIALLY) -->
-    <div id="resultCard" class="card card-custom p-3 p-sm-4 mb-5 d-none shadow-lg">
-      <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2 mb-3 pb-3 border-bottom">
-        <div>
-          <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill small fw-semibold mb-1">
-            <i class="bi bi-check-circle-fill me-1"></i> Real Room Visualization Ready
-          </span>
-          <h2 class="h5 brand-title mb-1">Customer Room Preview</h2>
-          <p id="resultSummaryText" class="small text-muted mb-0"></p>
-        </div>
-        <div>
-          <button type="button" id="startNewBtn" class="btn btn-outline-secondary btn-sm px-3 py-2 rounded-3">
-            <i class="bi bi-plus-circle me-1"></i> New Visual
-          </button>
-        </div>
-      </div>
-
-      <!-- Interactive Before / After Slider -->
-      <div class="mb-3">
+      <!-- Dominant Result Viewer -->
+      <div class="card card-custom p-2 mb-3 shadow-lg">
         <div id="sliderContainer" class="slider-container">
-          <!-- After (AI Generated Image) -->
+          <!-- After (Final Visualization) -->
           <img id="sliderAfterImg" class="slider-img-after" src="" alt="AI Visualized Room">
-          <span class="badge-pill-ai">Furniture Placed</span>
+          <span class="badge-pill-ai">With Products</span>
 
-          <!-- Before (Original Room Clipped) -->
+          <!-- Before (Original Room) -->
           <div id="sliderClip" class="slider-clip-container">
-            <img id="sliderBeforeImg" class="slider-img-before" src="" alt="Original Customer Room">
+            <img id="sliderBeforeImg" class="slider-img-before" src="" alt="Original Room">
             <span class="badge-pill-room">Original Room</span>
           </div>
 
-          <!-- Divider Handle -->
+          <!-- Divider -->
           <div id="sliderDivider" class="slider-divider">
             <div class="slider-handle"><i class="bi bi-arrows"></i></div>
           </div>
@@ -289,66 +278,45 @@
           <!-- Range Input Overlay -->
           <input type="range" id="sliderRange" class="slider-range-input" min="0" max="100" value="50" aria-label="Comparison slider">
         </div>
-        <p class="text-center text-muted small mt-2 mb-0" style="font-size: 0.78rem;">
-          <i class="bi bi-arrow-left-right me-1"></i> Drag slider sideways to compare before and after
+        <p class="text-center text-muted small mt-2 mb-1" style="font-size: 0.75rem;">
+          <i class="bi bi-arrow-left-right me-1"></i> Slide horizontally to compare with original room
         </p>
       </div>
 
-      <!-- Mobile-Friendly Action Buttons -->
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pb-3 mb-3 border-bottom">
-        <div class="d-flex gap-2 flex-wrap w-100 w-sm-auto">
-          <button type="button" id="shareBtn" class="btn btn-success btn-sm rounded-3 fw-semibold flex-grow-1 flex-sm-grow-0 d-flex align-items-center justify-content-center gap-1 shadow-sm">
-            <i class="bi bi-whatsapp"></i> Share Image
-          </button>
-          <a id="downloadLink" href="#" download="rajgarhwala-room-visualization.png" class="btn btn-dark btn-sm rounded-3 fw-semibold flex-grow-1 flex-sm-grow-0 d-flex align-items-center justify-content-center gap-1">
-            <i class="bi bi-download"></i> Save Image
-          </a>
-          <a id="fullResLink" href="#" target="_blank" class="btn btn-light btn-sm rounded-3 fw-semibold border flex-grow-1 flex-sm-grow-0 d-flex align-items-center justify-content-center gap-1">
-            <i class="bi bi-arrows-fullscreen"></i> Full Screen
-          </a>
-        </div>
+      <!-- Products Used Thumbnails -->
+      <div class="card card-custom p-3 mb-3 bg-light border-0">
+        <div id="resultProductsHeader" class="small fw-bold text-dark mb-2">Products Placed</div>
+        <div id="resultProductsThumbList" class="d-flex gap-2 flex-wrap"></div>
       </div>
 
-      <!-- Regeneration Controls -->
-      <div class="card p-3 bg-light border-0 rounded-4">
-        <h3 class="h6 fw-bold mb-1"><i class="bi bi-arrow-repeat me-1 text-warning"></i> Adjust & Reposition</h3>
-        <p class="small text-muted mb-3" style="font-size: 0.8rem;">Change placement or orientation without taking new photos.</p>
+      <!-- Primary Action Buttons -->
+      <div class="d-flex flex-column gap-2 pb-4">
+        <button type="button" id="saveImageBtn" class="btn btn-dark btn-lg py-3 rounded-4 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2">
+          <i class="bi bi-download"></i>
+          <span>Save Image</span>
+        </button>
 
-        <div class="row g-2 g-sm-3">
-          <div class="col-sm-5">
-            <label for="regenPlacementSelect" class="form-label small fw-semibold text-secondary mb-1">New Placement</label>
-            <select id="regenPlacementSelect" class="form-select rounded-3">
-              <option value="Center">Center</option>
-              <option value="Left">Left Side</option>
-              <option value="Right">Right Side</option>
-              <option value="Against Back Wall">Back Wall</option>
-              <option value="Against Left Wall">Left Wall</option>
-              <option value="Against Right Wall">Right Wall</option>
-              <option value="Corner">Corner</option>
-              <option value="Custom">Custom</option>
-            </select>
-          </div>
-          <div class="col-sm-7">
-            <label for="regenInstructionsInput" class="form-label small fw-semibold text-secondary mb-1">Updated Instructions</label>
-            <input type="text" id="regenInstructionsInput" class="form-control rounded-3" placeholder="e.g. Move slightly right, face towards window">
-          </div>
-        </div>
+        <button type="button" id="shareImageBtn" class="btn btn-success btn-lg py-3 rounded-4 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2">
+          <i class="bi bi-whatsapp"></i>
+          <span>Share Image</span>
+        </button>
 
-        <div class="mt-3 text-end">
-          <button type="button" id="regenBtn" class="btn btn-dark btn-sm px-3 py-2 rounded-3 fw-semibold w-100 w-sm-auto">
-            <span id="regenSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-            <i class="bi bi-stars text-warning me-1"></i> Reposition Piece
+        <div class="d-flex gap-2 mt-1">
+          <button type="button" id="tryAgainBtn" class="btn btn-outline-secondary btn-sm flex-fill py-2 rounded-3 fw-semibold">
+            <i class="bi bi-arrow-repeat me-1"></i> Edit Products
+          </button>
+          <button type="button" id="startOverBtn" class="btn btn-outline-secondary btn-sm flex-fill py-2 rounded-3 fw-semibold">
+            <i class="bi bi-plus-circle me-1"></i> New Room
           </button>
         </div>
       </div>
-
-    </div>
+    </section>
 
   </main>
 
   <footer class="text-center py-3 text-muted small border-top bg-white app-footer">
-    <div class="container">
-      &copy; <?= date('Y') ?> Rajgarhwala AI Furniture Visualizer &bull; Showroom Sales Edition
+    <div class="container" style="font-size: 0.75rem;">
+      Rajgarhwala AI &bull; Showroom Furniture Visualizer
     </div>
   </footer>
 

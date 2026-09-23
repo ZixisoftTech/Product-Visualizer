@@ -15,7 +15,7 @@ html {
   touch-action: manipulation;
 }
 
-body {
+body.mobile-app-body {
   background-color: #fcfbf9;
   color: #1e293b;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -32,7 +32,11 @@ body.is-webview {
   background-color: #fcfbf9;
 }
 
-body.hide-header header {
+body.hide-header header.app-header {
+  display: none !important;
+}
+
+body.hide-header footer.app-footer {
   display: none !important;
 }
 
@@ -44,36 +48,37 @@ body.hide-header header {
 }
 
 header.sticky-top {
-  padding-top: max(0.75rem, var(--safe-top)) !important;
+  padding-top: max(0.5rem, var(--safe-top)) !important;
   backdrop-filter: blur(8px);
-  background-color: rgba(255, 255, 255, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  z-index: 1020;
+}
+
+/* Step pills */
+.step-pill {
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.step-pill.active {
+  background: var(--primary-stone);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .card-custom {
   background: #ffffff;
-  border-radius: 1.25rem;
+  border-radius: 1.15rem;
   border: 1px solid var(--card-border);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
 }
 
-.card-custom:hover {
-  border-color: #cbd5e1;
-}
-
-/* Step badges */
-.step-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 50%;
-  background-color: rgba(217, 119, 6, 0.12);
-  color: var(--warm-amber);
-  font-weight: 700;
-  font-size: 0.85rem;
-  flex-shrink: 0;
+.border-dashed {
+  border: 2px dashed #cbd5e1 !important;
 }
 
 /* Upload dropzones */
@@ -112,42 +117,33 @@ header.sticky-top {
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(to top, rgba(15, 23, 42, 0.88), transparent);
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.9), transparent);
   padding: 0.75rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-/* Placement buttons */
-.btn-placement {
-  border: 1px solid #e2e8f0;
+/* Product Card in Screen 2 */
+.product-item-card {
   background: #ffffff;
-  color: #334155;
-  font-weight: 600;
-  font-size: 0.875rem;
-  border-radius: 0.75rem;
-  padding: 0.75rem 0.5rem;
-  min-height: 46px;
-  transition: all 0.15s ease;
-  width: 100%;
-  touch-action: manipulation;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
-.btn-placement:active {
-  transform: scale(0.97);
-}
-
-.btn-placement:hover {
+.product-item-card .prod-thumb-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
   background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.btn-placement.active {
-  background: var(--primary-stone);
-  color: #ffffff;
-  border-color: var(--primary-stone);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  padding: 4px;
 }
 
 /* Touch-friendly buttons */
@@ -164,8 +160,8 @@ header.sticky-top {
 .slider-container {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
-  border-radius: 1.25rem;
+  aspect-ratio: 4 / 3;
+  border-radius: 1rem;
   overflow: hidden;
   background: #0f172a;
   user-select: none;
@@ -173,9 +169,9 @@ header.sticky-top {
   touch-action: none;
 }
 
-@media (max-width: 576px) {
+@media (min-width: 576px) {
   .slider-container {
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 10;
   }
 }
 
@@ -228,8 +224,8 @@ header.sticky-top {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.4rem;
+  height: 2.4rem;
   border-radius: 50%;
   background: #ffffff;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
@@ -255,13 +251,13 @@ header.sticky-top {
 /* Badge labels */
 .badge-pill-room {
   position: absolute;
-  bottom: 0.75rem;
-  left: 0.75rem;
+  bottom: 0.65rem;
+  left: 0.65rem;
   background: rgba(15, 23, 42, 0.85);
   color: #ffffff;
-  padding: 0.35rem 0.65rem;
+  padding: 0.3rem 0.6rem;
   border-radius: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   backdrop-filter: blur(4px);
   z-index: 15;
@@ -269,51 +265,24 @@ header.sticky-top {
 
 .badge-pill-ai {
   position: absolute;
-  bottom: 0.75rem;
-  right: 0.75rem;
+  bottom: 0.65rem;
+  right: 0.65rem;
   background: rgba(15, 23, 42, 0.85);
   color: #ffffff;
-  padding: 0.35rem 0.65rem;
+  padding: 0.3rem 0.6rem;
   border-radius: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   backdrop-filter: blur(4px);
   z-index: 15;
 }
 
-/* Unit selector */
-.unit-toggle .btn {
-  padding: 0.4rem 0.85rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  min-height: 40px;
+/* Screen transition */
+.app-screen {
+  animation: fadeIn 0.2s ease-in-out;
 }
 
-/* Sticky Action Bar for Mobile & WebView */
-.sticky-mobile-cta {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(226, 232, 240, 0.9);
-  padding: 0.75rem 1rem calc(var(--safe-bottom) + 0.75rem) 1rem;
-  z-index: 1040;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
-}
-
-/* Mobile optimizations */
-@media (max-width: 576px) {
-  .card-custom {
-    padding: 1.25rem !important;
-    border-radius: 1rem;
-  }
-  .upload-dropzone {
-    padding: 1.25rem 0.75rem;
-  }
-  .btn-lg {
-    font-size: 1rem;
-    padding: 0.85rem 1rem;
-  }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }

@@ -1,10 +1,14 @@
 /**
  * Rajgarhwala AI Visualizer Frontend Controller
- * Fully optimized for Mobile Browsers & Native Mobile WebViews
- * (Android WebView, iOS WKWebView, Flutter WebView, React Native WebView)
+ * 4-Screen Mobile WebView Workflow:
+ * Screen 1: Add Room
+ * Screen 2: Add Products (Up to 3)
+ * Screen 3: Creating Visualization (Loading)
+ * Screen 4: Final AI Visualization (Save & Share)
  */
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Cross-Platform Native Bridge Helper
+
+  // 1. Cross-Platform Native Bridge Dispatcher
   function notifyNativeApp(eventType, payload = {}) {
     const messageObj = {
       event: eventType,
@@ -36,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Flutter WebView (flutter_inappwebview or custom channel)
+    // Flutter WebView
     if (window.FlutterBridge && typeof window.FlutterBridge.postMessage === 'function') {
       try { window.FlutterBridge.postMessage(jsonStr); } catch (e) { console.warn(e); }
     }
@@ -58,176 +62,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   notifyNativeApp('onAppReady', { url: window.location.href });
 
-  // DOM Elements
-  const roomFileInput = document.getElementById('roomFileInput');
-  const roomCameraInput = document.getElementById('roomCameraInput');
-  const prodFileInput = document.getElementById('prodFileInput');
-  const prodCameraInput = document.getElementById('prodCameraInput');
+  // 3. Screen Elements
+  const screen1 = document.getElementById('screen1');
+  const screen2 = document.getElementById('screen2');
+  const screen3 = document.getElementById('screen3');
+  const screen4 = document.getElementById('screen4');
 
-  const roomDropzone = document.getElementById('roomDropzone');
-  const roomPreviewBox = document.getElementById('roomPreviewBox');
-  const roomPreviewImg = document.getElementById('roomPreviewImg');
-  const removeRoomBtn = document.getElementById('removeRoomBtn');
-
-  const prodDropzone = document.getElementById('prodDropzone');
-  const prodPreviewBox = document.getElementById('prodPreviewBox');
-  const prodPreviewImg = document.getElementById('prodPreviewImg');
-  const removeProdBtn = document.getElementById('removeProdBtn');
-
-  const widthInput = document.getElementById('productWidth');
-  const depthInput = document.getElementById('productDepth');
-  const heightInput = document.getElementById('productHeight');
-  const unitInputs = document.querySelectorAll('input[name="dimension_unit"]');
-  const instructionsInput = document.getElementById('instructions');
-  const charCounter = document.getElementById('charCounter');
-
-  const placementBtns = document.querySelectorAll('.btn-placement');
-  const placementHiddenInput = document.getElementById('selectedPlacement');
-
-  const generateBtn = document.getElementById('generateBtn');
-  const btnSpinner = document.getElementById('btnSpinner');
-  const btnText = document.getElementById('btnText');
-  const missingRequirementsText = document.getElementById('missingRequirementsText');
+  const stepBadge1 = document.getElementById('stepBadge1');
+  const stepBadge2 = document.getElementById('stepBadge2');
+  const stepBadge3 = document.getElementById('stepBadge3');
 
   const errorAlert = document.getElementById('errorAlert');
   const errorMessage = document.getElementById('errorMessage');
-
-  const visualizerFormCard = document.getElementById('visualizerFormCard');
-  const resultCard = document.getElementById('resultCard');
-  const startNewBtn = document.getElementById('startNewBtn');
-  const headerResetBtn = document.getElementById('headerResetBtn');
-
-  // Slider elements
-  const sliderBeforeImg = document.getElementById('sliderBeforeImg');
-  const sliderAfterImg = document.getElementById('sliderAfterImg');
-  const fullResLink = document.getElementById('fullResLink');
-  const downloadLink = document.getElementById('downloadLink');
-  const shareBtn = document.getElementById('shareBtn');
-  const resultSummaryText = document.getElementById('resultSummaryText');
-
-  // Regeneration elements
-  const regenPlacementSelect = document.getElementById('regenPlacementSelect');
-  const regenInstructionsInput = document.getElementById('regenInstructionsInput');
-  const regenBtn = document.getElementById('regenBtn');
-  const regenSpinner = document.getElementById('regenSpinner');
-
-  // State
-  let currentRoomFile = null;
-  let currentProdFile = null;
-  let currentVisualization = null;
-  let isSubmitting = false;
-
-  // Init Slider
-  initImageSlider('sliderContainer', 'sliderRange', 'sliderClip', 'sliderDivider');
-
-  // Instructions Character Count
-  if (instructionsInput && charCounter) {
-    instructionsInput.addEventListener('input', () => {
-      charCounter.textContent = instructionsInput.value.length;
-    });
-  }
-
-  // Placement Selection
-  placementBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      placementBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      placementHiddenInput.value = btn.dataset.placement;
-      validateFormState();
-    });
-  });
-
-  // Room File Selection
-  function handleRoomSelect(file) {
-    if (!file) return;
-    currentRoomFile = file;
-    const url = URL.createObjectURL(file);
-    roomPreviewImg.src = url;
-    roomDropzone.classList.add('d-none');
-    roomPreviewBox.classList.remove('d-none');
-    hideError();
-    validateFormState();
-    notifyNativeApp('onRoomPhotoSelected', { name: file.name, size: file.size });
-  }
-
-  if (roomFileInput) roomFileInput.addEventListener('change', (e) => handleRoomSelect(e.target.files[0]));
-  if (roomCameraInput) roomCameraInput.addEventListener('change', (e) => handleRoomSelect(e.target.files[0]));
-
-  function resetRoom() {
-    currentRoomFile = null;
-    if (roomFileInput) roomFileInput.value = '';
-    if (roomCameraInput) roomCameraInput.value = '';
-    roomPreviewImg.src = '';
-    roomPreviewBox.classList.add('d-none');
-    roomDropzone.classList.remove('d-none');
-    validateFormState();
-  }
-
-  if (removeRoomBtn) removeRoomBtn.addEventListener('click', resetRoom);
-
-  // Product File Selection
-  function handleProdSelect(file) {
-    if (!file) return;
-    currentProdFile = file;
-    const url = URL.createObjectURL(file);
-    prodPreviewImg.src = url;
-    prodDropzone.classList.add('d-none');
-    prodPreviewBox.classList.remove('d-none');
-    hideError();
-    validateFormState();
-    notifyNativeApp('onProductPhotoSelected', { name: file.name, size: file.size });
-  }
-
-  if (prodFileInput) prodFileInput.addEventListener('change', (e) => handleProdSelect(e.target.files[0]));
-  if (prodCameraInput) prodCameraInput.addEventListener('change', (e) => handleProdSelect(e.target.files[0]));
-
-  function resetProduct() {
-    currentProdFile = null;
-    if (prodFileInput) prodFileInput.value = '';
-    if (prodCameraInput) prodCameraInput.value = '';
-    prodPreviewImg.src = '';
-    prodPreviewBox.classList.add('d-none');
-    prodDropzone.classList.remove('d-none');
-    validateFormState();
-  }
-
-  if (removeProdBtn) removeProdBtn.addEventListener('click', resetProduct);
-
-  // Dimension input listeners
-  [widthInput, depthInput, heightInput].forEach((input) => {
-    if (input) input.addEventListener('input', validateFormState);
-  });
-
-  function validateFormState() {
-    const w = parseFloat(widthInput?.value);
-    const d = parseFloat(depthInput?.value);
-    const h = parseFloat(heightInput?.value);
-
-    const hasRoom = !!currentRoomFile;
-    const hasProd = !!currentProdFile;
-    const hasDims = !isNaN(w) && w > 0 && !isNaN(d) && d > 0 && !isNaN(h) && h > 0;
-    const hasPlacement = !!placementHiddenInput?.value;
-
-    const missing = [];
-    if (!hasRoom) missing.push('Customer Room');
-    if (!hasProd) missing.push('Furniture Product');
-    if (!hasDims) missing.push('Dimensions');
-    if (!hasPlacement) missing.push('Placement');
-
-    const isValid = hasRoom && hasProd && hasDims && hasPlacement;
-    if (generateBtn) generateBtn.disabled = !isValid || isSubmitting;
-
-    if (!isValid && missing.length > 0) {
-      if (missingRequirementsText) {
-        missingRequirementsText.textContent = `Please provide: ${missing.join(', ')} to generate`;
-        missingRequirementsText.classList.remove('d-none');
-      }
-    } else {
-      if (missingRequirementsText) missingRequirementsText.classList.add('d-none');
-    }
-
-    return isValid;
-  }
 
   function showError(msg) {
     if (errorMessage) errorMessage.textContent = msg;
@@ -240,53 +86,329 @@ document.addEventListener('DOMContentLoaded', () => {
     if (errorAlert) errorAlert.classList.add('d-none');
   }
 
-  // Form Reset
-  function resetAll() {
-    resetRoom();
-    resetProduct();
-    if (instructionsInput) instructionsInput.value = '';
-    if (charCounter) charCounter.textContent = '0';
-    currentVisualization = null;
+  function showScreen(num) {
     hideError();
-    resultCard.classList.add('d-none');
-    visualizerFormCard.classList.remove('d-none');
+    screen1.classList.toggle('d-none', num !== 1);
+    screen2.classList.toggle('d-none', num !== 2);
+    screen3.classList.toggle('d-none', num !== 3);
+    screen4.classList.toggle('d-none', num !== 4);
+
+    // Update progress badge
+    stepBadge1.classList.toggle('active', num === 1);
+    stepBadge2.classList.toggle('active', num === 2 || num === 3);
+    stepBadge3.classList.toggle('active', num === 4);
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    notifyNativeApp('onReset');
   }
 
-  if (headerResetBtn) headerResetBtn.addEventListener('click', resetAll);
-  if (startNewBtn) startNewBtn.addEventListener('click', resetAll);
+  // 4. State
+  let roomFile = null;
+  let roomPreviewUrl = '';
+  let products = []; // Array of { id, file, previewUrl, width, depth, height, unit }
+  let currentVisualization = null;
 
-  // Form Submit Handler
-  generateBtn.addEventListener('click', async () => {
-    if (!validateFormState() || isSubmitting) return;
+  // Init Slider
+  initImageSlider('sliderContainer', 'sliderRange', 'sliderClip', 'sliderDivider');
 
-    isSubmitting = true;
-    generateBtn.disabled = true;
-    btnSpinner.classList.remove('d-none');
-    btnText.textContent = 'Placing in Customer Room...';
-    hideError();
+  // ==========================================
+  // SCREEN 1: ROOM SETUP
+  // ==========================================
+  const roomCameraInput = document.getElementById('roomCameraInput');
+  const roomGalleryInput = document.getElementById('roomGalleryInput');
+  const roomChangeInput = document.getElementById('roomChangeInput');
+  const roomEmptyState = document.getElementById('roomEmptyState');
+  const roomLoadedState = document.getElementById('roomLoadedState');
+  const roomPreviewImg = document.getElementById('roomPreviewImg');
 
+  const roomLengthInput = document.getElementById('roomLength');
+  const roomWidthInput = document.getElementById('roomWidth');
+  const roomHeightInput = document.getElementById('roomHeight');
+  const continueToProductsBtn = document.getElementById('continueToProductsBtn');
+  const roomValidationHint = document.getElementById('roomValidationHint');
+
+  async function handleRoomPhotoSelect(file) {
+    if (!file) return;
+    try {
+      roomFile = await compressImageForUpload(file, 1600, false);
+      if (roomPreviewUrl) URL.revokeObjectURL(roomPreviewUrl);
+      roomPreviewUrl = URL.createObjectURL(roomFile);
+
+      roomPreviewImg.src = roomPreviewUrl;
+      roomEmptyState.classList.add('d-none');
+      roomLoadedState.classList.remove('d-none');
+      hideError();
+      validateScreen1();
+      notifyNativeApp('onRoomPhotoSelected', { name: roomFile.name, size: roomFile.size });
+    } catch (err) {
+      showError('Failed to process room image.');
+    }
+  }
+
+  if (roomCameraInput) roomCameraInput.addEventListener('change', (e) => handleRoomPhotoSelect(e.target.files[0]));
+  if (roomGalleryInput) roomGalleryInput.addEventListener('change', (e) => handleRoomPhotoSelect(e.target.files[0]));
+  if (roomChangeInput) roomChangeInput.addEventListener('change', (e) => handleRoomPhotoSelect(e.target.files[0]));
+
+  [roomLengthInput, roomWidthInput, roomHeightInput].forEach((inp) => {
+    if (inp) inp.addEventListener('input', validateScreen1);
+  });
+
+  function validateScreen1() {
+    const l = parseFloat(roomLengthInput.value);
+    const w = parseFloat(roomWidthInput.value);
+    const h = parseFloat(roomHeightInput.value);
+
+    const hasPhoto = !!roomFile;
+    const hasDims = !isNaN(l) && l > 0 && !isNaN(w) && w > 0 && !isNaN(h) && h > 0;
+
+    const isValid = hasPhoto && hasDims;
+    continueToProductsBtn.disabled = !isValid;
+
+    if (!hasPhoto) {
+      roomValidationHint.textContent = 'Please upload room photo to continue';
+      roomValidationHint.classList.remove('d-none');
+    } else if (!hasDims) {
+      roomValidationHint.textContent = 'Please enter valid room dimensions';
+      roomValidationHint.classList.remove('d-none');
+    } else {
+      roomValidationHint.classList.add('d-none');
+    }
+
+    return isValid;
+  }
+
+  continueToProductsBtn.addEventListener('click', () => {
+    if (!validateScreen1()) return;
+
+    // Update mini room preview on Screen 2
+    const miniRoomThumb = document.getElementById('miniRoomThumb');
+    const miniRoomDims = document.getElementById('miniRoomDims');
+    if (miniRoomThumb) miniRoomThumb.src = roomPreviewUrl;
+    if (miniRoomDims) {
+      miniRoomDims.textContent = `${roomLengthInput.value}×${roomWidthInput.value}×${roomHeightInput.value} ft`;
+    }
+
+    showScreen(2);
+  });
+
+  document.getElementById('editRoomBtn')?.addEventListener('click', () => showScreen(1));
+  document.getElementById('backToRoomBtn')?.addEventListener('click', () => showScreen(1));
+
+
+  // ==========================================
+  // SCREEN 2: ADD PRODUCTS (UP TO 3)
+  // ==========================================
+  const productCameraInput = document.getElementById('productCameraInput');
+  const productGalleryInput = document.getElementById('productGalleryInput');
+  const productsContainer = document.getElementById('productsContainer');
+  const addProductBox = document.getElementById('addProductBox');
+  const maxProductsNotice = document.getElementById('maxProductsNotice');
+  const productCountBadge = document.getElementById('productCountBadge');
+  const optionalPlacement = document.getElementById('optionalPlacement');
+  const generateVisualizationBtn = document.getElementById('generateVisualizationBtn');
+
+  async function handleProductPhotoSelect(file) {
+    if (!file || products.length >= 3) return;
+
+    try {
+      // Compress and isolate product background
+      const processedFile = await compressImageForUpload(file, 1600, true);
+      const url = URL.createObjectURL(processedFile);
+
+      const newProd = {
+        id: Date.now() + Math.random(),
+        file: processedFile,
+        previewUrl: url,
+        width: 84,
+        depth: 36,
+        height: 34,
+        unit: 'inch',
+      };
+
+      products.push(newProd);
+      renderProductsList();
+      validateScreen2();
+      notifyNativeApp('onProductAdded', { count: products.length });
+    } catch (err) {
+      showError('Failed to isolate product photo.');
+    } finally {
+      if (productCameraInput) productCameraInput.value = '';
+      if (productGalleryInput) productGalleryInput.value = '';
+    }
+  }
+
+  if (productCameraInput) productCameraInput.addEventListener('change', (e) => handleProductPhotoSelect(e.target.files[0]));
+  if (productGalleryInput) productGalleryInput.addEventListener('change', (e) => handleProductPhotoSelect(e.target.files[0]));
+
+  function renderProductsList() {
+    productsContainer.innerHTML = '';
+
+    products.forEach((prod, idx) => {
+      const card = document.createElement('div');
+      card.className = 'product-item-card';
+      card.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-dark rounded-pill px-2 py-1 font-monospace">Product ${idx + 1}</span>
+            <span class="small text-muted fw-semibold" style="font-size: 0.75rem;">Background Isolated</span>
+          </div>
+          <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 rounded-2 remove-prod-btn" data-id="${prod.id}">
+            <i class="bi bi-trash3"></i> Remove
+          </button>
+        </div>
+
+        <div class="d-flex gap-3 align-items-center">
+          <img src="${prod.previewUrl}" alt="Product ${idx + 1}" class="prod-thumb-img flex-shrink-0">
+          <div class="flex-grow-1">
+            <div class="row g-1">
+              <div class="col-4">
+                <label class="form-label text-muted mb-0" style="font-size: 0.7rem;">Width</label>
+                <div class="input-group input-group-sm">
+                  <input type="number" step="any" min="1" class="form-control prod-w-input px-1 text-center" value="${prod.width}" data-id="${prod.id}" inputmode="decimal">
+                  <span class="input-group-text px-1" style="font-size: 0.7rem;">in</span>
+                </div>
+              </div>
+              <div class="col-4">
+                <label class="form-label text-muted mb-0" style="font-size: 0.7rem;">Depth</label>
+                <div class="input-group input-group-sm">
+                  <input type="number" step="any" min="1" class="form-control prod-d-input px-1 text-center" value="${prod.depth}" data-id="${prod.id}" inputmode="decimal">
+                  <span class="input-group-text px-1" style="font-size: 0.7rem;">in</span>
+                </div>
+              </div>
+              <div class="col-4">
+                <label class="form-label text-muted mb-0" style="font-size: 0.7rem;">Height</label>
+                <div class="input-group input-group-sm">
+                  <input type="number" step="any" min="1" class="form-control prod-h-input px-1 text-center" value="${prod.height}" data-id="${prod.id}" inputmode="decimal">
+                  <span class="input-group-text px-1" style="font-size: 0.7rem;">in</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      productsContainer.appendChild(card);
+    });
+
+    // Update count badge & add box visibility
+    productCountBadge.textContent = `${products.length} / 3 Added`;
+    if (products.length >= 3) {
+      addProductBox.classList.add('d-none');
+      maxProductsNotice.classList.remove('d-none');
+    } else {
+      addProductBox.classList.remove('d-none');
+      maxProductsNotice.classList.add('d-none');
+    }
+
+    // Attach listeners
+    productsContainer.querySelectorAll('.remove-prod-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = parseFloat(btn.dataset.id);
+        const removed = products.find(p => p.id === id);
+        if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+        products = products.filter(p => p.id !== id);
+        renderProductsList();
+        validateScreen2();
+      });
+    });
+
+    productsContainer.querySelectorAll('.prod-w-input').forEach((input) => {
+      input.addEventListener('input', () => {
+        const p = products.find(x => x.id === parseFloat(input.dataset.id));
+        if (p) p.width = parseFloat(input.value) || 0;
+        validateScreen2();
+      });
+    });
+
+    productsContainer.querySelectorAll('.prod-d-input').forEach((input) => {
+      input.addEventListener('input', () => {
+        const p = products.find(x => x.id === parseFloat(input.dataset.id));
+        if (p) p.depth = parseFloat(input.value) || 0;
+        validateScreen2();
+      });
+    });
+
+    productsContainer.querySelectorAll('.prod-h-input').forEach((input) => {
+      input.addEventListener('input', () => {
+        const p = products.find(x => x.id === parseFloat(input.dataset.id));
+        if (p) p.height = parseFloat(input.value) || 0;
+        validateScreen2();
+      });
+    });
+  }
+
+  function validateScreen2() {
+    const hasProducts = products.length >= 1;
+    const allValidDims = products.every(p => p.width > 0 && p.depth > 0 && p.height > 0);
+    const isValid = hasProducts && allValidDims;
+    generateVisualizationBtn.disabled = !isValid;
+    return isValid;
+  }
+
+
+  // ==========================================
+  // SCREEN 3: CREATING VISUALIZATION
+  // ==========================================
+  const loadingRoomBg = document.getElementById('loadingRoomBg');
+  const loadingStatusText = document.getElementById('loadingStatusText');
+
+  let loadingInterval = null;
+  const loadingMessages = [
+    'Analyzing room...',
+    'Preparing products...',
+    'Calculating scale...',
+    'Placing products...',
+    'Creating image...',
+  ];
+
+  function startLoadingCycle() {
+    if (loadingRoomBg) loadingRoomBg.src = roomPreviewUrl;
+    let idx = 0;
+    loadingStatusText.textContent = loadingMessages[0];
+    if (loadingInterval) clearInterval(loadingInterval);
+    loadingInterval = setInterval(() => {
+      idx = (idx + 1) % loadingMessages.length;
+      loadingStatusText.textContent = loadingMessages[idx];
+    }, 2200);
+  }
+
+  function stopLoadingCycle() {
+    if (loadingInterval) {
+      clearInterval(loadingInterval);
+      loadingInterval = null;
+    }
+  }
+
+
+  // ==========================================
+  // GENERATE ACTION
+  // ==========================================
+  generateVisualizationBtn.addEventListener('click', async () => {
+    if (!validateScreen2()) return;
+
+    showScreen(3);
+    startLoadingCycle();
     notifyNativeApp('onVisualizationStart');
 
     try {
-      // 1. Client-side compress images (room -> JPEG, product -> transparent PNG)
-      const [readyRoom, readyProd] = await Promise.all([
-        compressImageForUpload(currentRoomFile, 1600, false),
-        compressImageForUpload(currentProdFile, 1600, true),
-      ]);
-
-      const selectedUnit = document.querySelector('input[name="dimension_unit"]:checked')?.value || 'cm';
-
       const formData = new FormData();
-      formData.append('hall_image', readyRoom, 'customer_room.jpg');
-      formData.append('product_image', readyProd, 'showroom_product.png');
-      formData.append('product_width', widthInput.value);
-      formData.append('product_depth', depthInput.value);
-      formData.append('product_height', heightInput.value);
-      formData.append('dimension_unit', selectedUnit);
-      formData.append('placement', placementHiddenInput.value);
-      formData.append('instructions', instructionsInput.value.trim());
+      formData.append('hall_image', roomFile, 'customer_room.jpg');
+      formData.append('room_length', roomLengthInput.value);
+      formData.append('room_width', roomWidthInput.value);
+      formData.append('room_height', roomHeightInput.value);
+      formData.append('room_unit', 'ft');
+
+      const productsMeta = [];
+      products.forEach((prod, index) => {
+        formData.append(`product_image_${index}`, prod.file, `product_${index}.png`);
+        productsMeta.push({
+          width: prod.width,
+          depth: prod.depth,
+          height: prod.height,
+          unit: prod.unit,
+        });
+      });
+
+      formData.append('products_data', JSON.stringify(productsMeta));
+      formData.append('placement', optionalPlacement.value.trim() || 'Center');
 
       const res = await fetch('/api/visualize', {
         method: 'POST',
@@ -300,86 +422,53 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       currentVisualization = data.visualization;
-      displayVisualization(data.visualization);
+      displayVisualizationResult(data.visualization);
       notifyNativeApp('onVisualizationComplete', data.visualization);
     } catch (err) {
       console.error(err);
+      showScreen(2);
       showError(err.message || 'An unexpected error occurred during generation.');
     } finally {
-      isSubmitting = false;
-      btnSpinner.classList.add('d-none');
-      btnText.textContent = 'Generate AI Visualization';
-      validateFormState();
+      stopLoadingCycle();
     }
   });
 
-  // Display Visualization Result
-  function displayVisualization(vis) {
+
+  // ==========================================
+  // SCREEN 4: FINAL AI VISUALIZATION
+  // ==========================================
+  const sliderAfterImg = document.getElementById('sliderAfterImg');
+  const sliderBeforeImg = document.getElementById('sliderBeforeImg');
+  const resultProductsThumbList = document.getElementById('resultProductsThumbList');
+  const resultProductsHeader = document.getElementById('resultProductsHeader');
+  const saveImageBtn = document.getElementById('saveImageBtn');
+  const shareImageBtn = document.getElementById('shareImageBtn');
+  const tryAgainBtn = document.getElementById('tryAgainBtn');
+  const startOverBtn = document.getElementById('startOverBtn');
+
+  function displayVisualizationResult(vis) {
     const generatedSrc = vis.generated_image_data || vis.generated_image_path;
-    const roomSrc = roomPreviewImg.src || vis.hall_image_path;
+    const roomSrc = roomPreviewUrl || vis.hall_image_path;
 
     sliderAfterImg.src = generatedSrc;
     sliderBeforeImg.src = roomSrc;
-    fullResLink.href = generatedSrc;
 
-    downloadLink.onclick = (e) => {
-      e.preventDefault();
-      downloadAsPng(generatedSrc, `rajgarhwala_${vis.id || Date.now()}.png`);
-    };
+    // Thumbnails of products placed
+    resultProductsThumbList.innerHTML = '';
+    const count = products.length;
+    resultProductsHeader.textContent = `${count} Product${count > 1 ? 's' : ''} Placed`;
 
-    // Native & Web Share Support
-    if (shareBtn) {
-      shareBtn.onclick = async (e) => {
-        e.preventDefault();
-        notifyNativeApp('onShareRequest', {
-          image_data: generatedSrc,
-          title: 'Rajgarhwala Furniture Room Visualization',
-        });
+    products.forEach((prod, i) => {
+      const div = document.createElement('div');
+      div.className = 'd-flex align-items-center gap-1 p-1 px-2 bg-white rounded-3 border';
+      div.innerHTML = `
+        <img src="${prod.previewUrl}" alt="Product ${i + 1}" style="width: 28px; height: 28px; object-fit: contain;">
+        <span class="small font-monospace text-dark" style="font-size: 0.75rem;">${prod.width}×${prod.depth} in</span>
+      `;
+      resultProductsThumbList.appendChild(div);
+    });
 
-        // If Web Share API is available (iOS Safari, Android Chrome, WebView with WebShare)
-        if (navigator.share) {
-          try {
-            // Convert data URL to Blob File for native share sheet
-            const res = await fetch(generatedSrc);
-            const blob = await res.blob();
-            const file = new File([blob], `rajgarhwala_visualization.png`, { type: 'image/png' });
-
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                title: 'Rajgarhwala AI Room Visualization',
-                text: `Here is how the showroom furniture looks placed in your actual room!`,
-                files: [file],
-              });
-              return;
-            } else {
-              await navigator.share({
-                title: 'Rajgarhwala AI Room Visualization',
-                text: `Here is how the showroom furniture looks placed in your room!`,
-                url: window.location.href,
-              });
-              return;
-            }
-          } catch (shareErr) {
-            if (shareErr.name !== 'AbortError') {
-              console.warn('[Share error]', shareErr);
-            }
-          }
-        }
-
-        // Fallback: download the image
-        downloadAsPng(generatedSrc, `rajgarhwala_${vis.id || Date.now()}.png`);
-      };
-    }
-
-    resultSummaryText.textContent = `${vis.product_width}×${vis.product_depth}×${vis.product_height} ${vis.dimension_unit} • ${vis.placement}`;
-
-    // Fill regen controls
-    regenPlacementSelect.value = vis.placement;
-    regenInstructionsInput.value = vis.instructions || '';
-
-    visualizerFormCard.classList.add('d-none');
-    resultCard.classList.remove('d-none');
-    window.scrollTo({ top: resultCard.offsetTop - 20, behavior: 'smooth' });
+    showScreen(4);
   }
 
   function downloadAsPng(imgSrc, fileName) {
@@ -402,83 +491,84 @@ document.addEventListener('DOMContentLoaded', () => {
     img.src = imgSrc;
   }
 
-  // Handle Regeneration
-  regenBtn.addEventListener('click', async () => {
-    if (!currentVisualization || isSubmitting) return;
+  // Save Image Action
+  saveImageBtn.addEventListener('click', () => {
+    if (!currentVisualization) return;
+    const generatedSrc = currentVisualization.generated_image_data || currentVisualization.generated_image_path;
+    notifyNativeApp('onSaveImage', {
+      image_data: generatedSrc,
+      filename: `rajgarhwala_visualization_${Date.now()}.png`,
+    });
+    downloadAsPng(generatedSrc, `rajgarhwala_visualization_${Date.now()}.png`);
+  });
 
-    const newPlacement = regenPlacementSelect.value;
-    const newInstructions = regenInstructionsInput.value.trim();
+  // Share Image Action (WhatsApp / Native Share Sheet)
+  shareImageBtn.addEventListener('click', async () => {
+    if (!currentVisualization) return;
+    const generatedSrc = currentVisualization.generated_image_data || currentVisualization.generated_image_path;
 
-    isSubmitting = true;
-    regenBtn.disabled = true;
-    regenSpinner.classList.remove('d-none');
-    notifyNativeApp('onVisualizationStart');
+    notifyNativeApp('onShareRequest', {
+      image_data: generatedSrc,
+      title: 'Rajgarhwala AI Room Visualization',
+      text: 'Here is how your showroom furniture looks placed in your actual room!',
+    });
 
-    try {
-      if (currentRoomFile && currentProdFile) {
-        const [readyRoom, readyProd] = await Promise.all([
-          compressImageForUpload(currentRoomFile, 1600, false),
-          compressImageForUpload(currentProdFile, 1600, true),
-        ]);
+    if (navigator.share) {
+      try {
+        const res = await fetch(generatedSrc);
+        const blob = await res.blob();
+        const file = new File([blob], `rajgarhwala_visualization.png`, { type: 'image/png' });
 
-        const selectedUnit = document.querySelector('input[name="dimension_unit"]:checked')?.value || 'cm';
-
-        const formData = new FormData();
-        formData.append('hall_image', readyRoom, 'customer_room.jpg');
-        formData.append('product_image', readyProd, 'showroom_product.png');
-        formData.append('product_width', widthInput.value);
-        formData.append('product_depth', depthInput.value);
-        formData.append('product_height', heightInput.value);
-        formData.append('dimension_unit', selectedUnit);
-        formData.append('placement', newPlacement);
-        formData.append('instructions', newInstructions);
-
-        const res = await fetch('/api/visualize', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const data = await res.json().catch(() => null);
-
-        if (!res.ok || !data?.success) {
-          throw new Error(data?.error || `Server responded with error (${res.status})`);
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: 'Rajgarhwala AI Room Visualization',
+            text: 'Here is how your showroom furniture looks placed in your room!',
+            files: [file],
+          });
+          return;
+        } else {
+          await navigator.share({
+            title: 'Rajgarhwala AI Room Visualization',
+            text: 'Here is how your showroom furniture looks placed in your room!',
+            url: window.location.href,
+          });
+          return;
         }
-
-        currentVisualization = data.visualization;
-        displayVisualization(data.visualization);
-        notifyNativeApp('onVisualizationComplete', data.visualization);
-      } else {
-        const res = await fetch(`/api/visualize/${currentVisualization.id}/regenerate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            placement: newPlacement,
-            instructions: newInstructions,
-            ...currentVisualization,
-          }),
-        });
-
-        const data = await res.json().catch(() => null);
-
-        if (!res.ok || !data?.success) {
-          throw new Error(data?.error || 'Regeneration failed.');
-        }
-
-        currentVisualization = data.visualization;
-        displayVisualization(data.visualization);
-        notifyNativeApp('onVisualizationComplete', data.visualization);
+      } catch (err) {
+        if (err.name !== 'AbortError') console.warn(err);
       }
-    } catch (err) {
-      alert('Regeneration Error: ' + err.message);
-    } finally {
-      isSubmitting = false;
-      regenBtn.disabled = false;
-      regenSpinner.classList.add('d-none');
     }
+
+    // Fallback: save image
+    downloadAsPng(generatedSrc, `rajgarhwala_visualization_${Date.now()}.png`);
+  });
+
+  // Try Again / Edit Products -> Screen 2
+  tryAgainBtn.addEventListener('click', () => {
+    showScreen(2);
+  });
+
+  // Start Over -> Screen 1
+  startOverBtn.addEventListener('click', () => {
+    roomFile = null;
+    if (roomPreviewUrl) URL.revokeObjectURL(roomPreviewUrl);
+    roomPreviewUrl = '';
+    roomEmptyState.classList.remove('d-none');
+    roomLoadedState.classList.add('d-none');
+
+    products.forEach(p => {
+      if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+    });
+    products = [];
+    renderProductsList();
+    optionalPlacement.value = '';
+    currentVisualization = null;
+
+    validateScreen1();
+    showScreen(1);
+    notifyNativeApp('onReset');
   });
 
   // Initial validation check
-  validateFormState();
+  validateScreen1();
 });

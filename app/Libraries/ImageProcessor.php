@@ -28,248 +28,182 @@ class ImageProcessor
     }
 
     /**
-     * Creates a photorealistic composite placing the isolated product into the real room
-     * with realistic perspective scale and floor contact shadow.
+     * Multi-Product Composite Placing up to 3 products into the customer's room
+     * with physical dimension scaling and natural contact shadows.
      * GUARANTEES 100% preservation of the customer's actual room.
+     */
+    public static function createMultiProductComposite(
+        string $roomPath,
+        array $products,
+        string $outputPath,
+        array $roomDims = [],
+        string $placement = 'Center'
+    ): bool {
+        // If GD is available, can attempt GD; SVG composite is universal and 100% crisp
+        return self::createSvgMultiComposite($roomPath, $products, $outputPath, $roomDims, $placement);
+    }
+
+    /**
+     * Single-product backward compatibility wrapper
      */
     public static function createRoomComposite(
         string $roomPath,
         string $productPath,
         string $outputPath,
         string $placement = 'Center',
-        float $productWidth = 240,
-        float $productDepth = 90,
-        float $productHeight = 85,
-        string $unit = 'cm'
+        float $productWidth = 84,
+        float $productDepth = 36,
+        float $productHeight = 34,
+        string $unit = 'inch'
     ): bool {
-        // If GD extension is available, use high-speed pixel compositing
-        if (function_exists('imagecreatetruecolor')) {
-            $gdResult = self::createGdComposite(
-                $roomPath,
-                $productPath,
-                $outputPath,
-                $placement,
-                $productWidth,
-                $productDepth,
-                $productHeight,
-                $unit
-            );
-            if ($gdResult) {
-                return true;
-            }
-        }
+        $products = [
+            [
+                'path'   => $productPath,
+                'width'  => $productWidth,
+                'depth'  => $productDepth,
+                'height' => $productHeight,
+                'unit'   => $unit,
+            ]
+        ];
 
-        // Standard serverless fallback: SVG-based composite (zero external dependencies, 100% room preservation)
-        return self::createSvgComposite(
+        return self::createMultiProductComposite(
             $roomPath,
-            $productPath,
+            $products,
             $outputPath,
-            $placement,
-            $productWidth,
-            $productDepth,
-            $productHeight,
-            $unit
+            ['length' => 15, 'width' => 12, 'height' => 10, 'unit' => 'ft'],
+            $placement
         );
     }
 
     /**
-     * GD-based compositing (when GD extension is available)
+     * Pure SVG-based Multi-Product Composite (no GD/Imagick dependency)
+     * Real-world dimension scaling: room dimensions (ft/m) & product dimensions (in/cm)
      */
-    protected static function createGdComposite(
+    protected static function createSvgMultiComposite(
         string $roomPath,
-        string $productPath,
+        array $products,
         string $outputPath,
-        string $placement,
-        float $productWidth,
-        float $productDepth,
-        float $productHeight,
-        string $unit
-    ): bool {
-        $roomImg = self::createGdFromFile($roomPath);
-        $prodImg = self::createGdFromFile($productPath);
-
-        if (!$roomImg || !$prodImg) {
-            return false;
-        }
-
-        $roomW = imagesx($roomImg);
-        $roomH = imagesy($roomImg);
-        $prodOrigW = imagesx($prodImg);
-        $prodOrigH = imagesy($prodImg);
-
-        // Realistic scale: product occupies ~50-55% of room width
-        $targetProdW = (int) round($roomW * 0.52);
-        $aspectRatio = $prodOrigH / (float) max(1, $prodOrigW);
-        $targetProdH = (int) round($targetProdW * $aspectRatio);
-
-        // Position coordinates based on placement
-        $left = (int) round(($roomW - $targetProdW) / 2); // Center
-        $top = (int) round($roomH * 0.46); // Floor plane
-
-        $placementLower = strtolower($placement);
-        if (str_contains($placementLower, 'left')) {
-            $left = (int) round($roomW * 0.12);
-        } elseif (str_contains($placementLower, 'right')) {
-            $left = (int) round($roomW * 0.88 - $targetProdW);
-        }
-
-        if (str_contains($placementLower, 'back')) {
-            $top = (int) round($roomH * 0.38);
-        }
-
-        // Create canvas from room
-        $composite = imagecreatetruecolor($roomW, $roomH);
-        imagealphablending($composite, true);
-        imagesavealpha($composite, true);
-        imagecopy($composite, $roomImg, 0, 0, 0, 0, $roomW, $roomH);
-
-        // Soft floor contact shadow
-        $shadowW = $targetProdW + 40;
-        $shadowH = (int) round($targetProdH * 0.25);
-        $shadowX = max(0, $left - 20);
-        $shadowY = $top + $targetProdH - (int) round($shadowH * 0.45);
-
-        for ($layer = 6; $layer >= 1; $layer--) {
-            $layerAlpha = 115 + ($layer * 2);
-            $shadowColor = imagecolorallocatealpha($composite, 15, 12, 10, min(127, $layerAlpha));
-            $sW = $shadowW + ($layer * 4);
-            $sH = $shadowH + ($layer * 2);
-            $sX = $shadowX - ($layer * 2);
-            $sY = $shadowY - $layer;
-            imagefilledellipse($composite, (int) round($sX + $sW / 2), (int) round($sY + $sH / 2), $sW, $sH, $shadowColor);
-        }
-
-        // Copy resized product with transparency
-        imagecopyresampled(
-            $composite,
-            $prodImg,
-            $left,
-            $top,
-            0,
-            0,
-            $targetProdW,
-            $targetProdH,
-            $prodOrigW,
-            $prodOrigH
-        );
-
-        $saved = imagepng($composite, $outputPath, 8);
-
-        imagedestroy($roomImg);
-        imagedestroy($prodImg);
-        imagedestroy($composite);
-
-        return $saved;
-    }
-
-    /**
-     * Creates a GD image resource from file path
-     */
-    protected static function createGdFromFile(string $filePath)
-    {
-        $info = @getimagesize($filePath);
-        if (!$info) {
-            return null;
-        }
-
-        $mime = $info['mime'] ?? '';
-        switch ($mime) {
-            case 'image/jpeg':
-            case 'image/jpg':
-                return @imagecreatefromjpeg($filePath);
-            case 'image/png':
-                $img = @imagecreatefrompng($filePath);
-                if ($img) {
-                    imagealphablending($img, true);
-                    imagesavealpha($img, true);
-                }
-                return $img;
-            case 'image/webp':
-                if (function_exists('imagecreatefromwebp')) {
-                    $img = @imagecreatefromwebp($filePath);
-                    if ($img) {
-                        imagealphablending($img, true);
-                        imagesavealpha($img, true);
-                    }
-                    return $img;
-                }
-                break;
-        }
-
-        $content = @file_get_contents($filePath);
-        if ($content && function_exists('imagecreatefromstring')) {
-            return @imagecreatefromstring($content);
-        }
-
-        return null;
-    }
-
-    /**
-     * Pure PHP SVG-based compositing (no GD/Imagick required)
-     * Embeds customer room 1:1 with soft ambient contact shadow and isolated product.
-     */
-    protected static function createSvgComposite(
-        string $roomPath,
-        string $productPath,
-        string $outputPath,
-        string $placement,
-        float $productWidth,
-        float $productDepth,
-        float $productHeight,
-        string $unit
+        array $roomDims = [],
+        string $placement = 'Center'
     ): bool {
         $roomInfo = @getimagesize($roomPath);
-        $prodInfo = @getimagesize($productPath);
-
         $roomW = $roomInfo ? ($roomInfo[0] ?? 1200) : 1200;
         $roomH = $roomInfo ? ($roomInfo[1] ?? 900) : 900;
-        $prodW = $prodInfo ? ($prodInfo[0] ?? 600) : 600;
-        $prodH = $prodInfo ? ($prodInfo[1] ?? 400) : 400;
-
-        $targetProdW = (int) round($roomW * 0.52);
-        $aspectRatio = $prodH / (float) max(1, $prodW);
-        $targetProdH = (int) round($targetProdW * $aspectRatio);
-
-        $left = (int) round(($roomW - $targetProdW) / 2);
-        $top = (int) round($roomH * 0.46);
-
-        $placementLower = strtolower($placement);
-        if (str_contains($placementLower, 'left')) {
-            $left = (int) round($roomW * 0.12);
-        } elseif (str_contains($placementLower, 'right')) {
-            $left = (int) round($roomW * 0.88 - $targetProdW);
-        }
-
-        if (str_contains($placementLower, 'back')) {
-            $top = (int) round($roomH * 0.38);
-        }
-
-        $shadowW = $targetProdW + 40;
-        $shadowH = (int) round($targetProdH * 0.25);
-        $shadowCx = (int) round($left + $targetProdW / 2);
-        $shadowCy = (int) round($top + $targetProdH - $shadowH * 0.2);
-        $shadowRx = (int) round($shadowW / 2);
-        $shadowRy = (int) round($shadowH / 2);
-
         $roomMime = $roomInfo['mime'] ?? 'image/jpeg';
-        $prodMime = $prodInfo['mime'] ?? 'image/png';
-
         $roomB64 = base64_encode(file_get_contents($roomPath));
-        $prodB64 = base64_encode(file_get_contents($productPath));
+
+        // Real-world room width in meters
+        $rWidth = (float) ($roomDims['width'] ?? 12);
+        $rUnit = strtolower((string) ($roomDims['unit'] ?? 'ft'));
+        $roomWidthMeters = ($rUnit === 'ft') ? ($rWidth * 0.3048) : (($rUnit === 'cm') ? ($rWidth * 0.01) : $rWidth);
+        if ($roomWidthMeters <= 0.5) $roomWidthMeters = 3.65; // ~12ft fallback
+
+        $count = count($products);
+        $shadowElements = [];
+        $productElements = [];
+
+        foreach ($products as $idx => $prod) {
+            $pPath = $prod['path'] ?? '';
+            if (!file_exists($pPath)) continue;
+
+            $pInfo = @getimagesize($pPath);
+            $pW = $pInfo ? ($pInfo[0] ?? 600) : 600;
+            $pH = $pInfo ? ($pInfo[1] ?? 400) : 400;
+            $pMime = $pInfo['mime'] ?? 'image/png';
+            $pB64 = base64_encode(file_get_contents($pPath));
+
+            // Product width in meters
+            $pw = (float) ($prod['width'] ?? 84);
+            $pu = strtolower((string) ($prod['unit'] ?? 'inch'));
+            $prodWidthMeters = ($pu === 'inch' || $pu === 'in') ? ($pw * 0.0254) : (($pu === 'cm') ? ($pw * 0.01) : ($pw * 0.3048));
+            if ($prodWidthMeters <= 0.1) $prodWidthMeters = 2.13; // ~84in fallback
+
+            // Physical scale ratio relative to room width
+            $scaleRatio = $prodWidthMeters / max(1.0, $roomWidthMeters);
+
+            // Layout based on product count
+            if ($count === 1) {
+                $scaleRatio = max(0.25, min(0.60, $scaleRatio));
+                $targetW = (int) round($roomW * $scaleRatio);
+                $aspect = $pH / (float) max(1, $pW);
+                $targetH = (int) round($targetW * $aspect);
+
+                $left = (int) round(($roomW - $targetW) / 2);
+                $top = (int) round($roomH * 0.46);
+
+                $pLower = strtolower($placement);
+                if (str_contains($pLower, 'left')) {
+                    $left = (int) round($roomW * 0.12);
+                } elseif (str_contains($pLower, 'right')) {
+                    $left = (int) round($roomW * 0.88 - $targetW);
+                } elseif (str_contains($pLower, 'corner')) {
+                    $left = (int) round($roomW * 0.10);
+                    $top = (int) round($roomH * 0.40);
+                }
+                if (str_contains($pLower, 'back')) {
+                    $top = (int) round($roomH * 0.38);
+                }
+            } elseif ($count === 2) {
+                $scaleRatio = max(0.20, min(0.48, $scaleRatio));
+                $targetW = (int) round($roomW * $scaleRatio);
+                $aspect = $pH / (float) max(1, $pW);
+                $targetH = (int) round($targetW * $aspect);
+
+                if ($idx === 0) {
+                    // Product 1: Left / Center
+                    $left = (int) round($roomW * 0.14);
+                    $top = (int) round($roomH * 0.44);
+                } else {
+                    // Product 2: Right / Slightly forward
+                    $left = (int) round($roomW * 0.54);
+                    $top = (int) round($roomH * 0.47);
+                }
+            } else { // 3 products
+                $scaleRatio = max(0.18, min(0.42, $scaleRatio));
+                $targetW = (int) round($roomW * $scaleRatio);
+                $aspect = $pH / (float) max(1, $pW);
+                $targetH = (int) round($targetW * $aspect);
+
+                if ($idx === 0) {
+                    // Product 1 (Primary / Center-Back)
+                    $left = (int) round(($roomW - $targetW) / 2);
+                    $top = (int) round($roomH * 0.40);
+                } elseif ($idx === 1) {
+                    // Product 2 (Left side)
+                    $left = (int) round($roomW * 0.08);
+                    $top = (int) round($roomH * 0.47);
+                } else {
+                    // Product 3 (Right / Foreground)
+                    $left = (int) round($roomW * 0.60);
+                    $top = (int) round($roomH * 0.49);
+                }
+            }
+
+            // Shadow calculation for this product
+            $shadowW = $targetW + 35;
+            $shadowH = (int) round($targetH * 0.22);
+            $shadowCx = (int) round($left + $targetW / 2);
+            $shadowCy = (int) round($top + $targetH - $shadowH * 0.25);
+            $shadowRx = (int) round($shadowW / 2);
+            $shadowRy = (int) round($shadowH / 2);
+
+            $shadowElements[] = '  <ellipse cx="' . $shadowCx . '" cy="' . $shadowCy . '" rx="' . $shadowRx . '" ry="' . $shadowRy . '" fill="rgba(10,8,6,0.50)" filter="url(#softShadow)" />';
+            $productElements[] = '  <image href="data:' . $pMime . ';base64,' . $pB64 . '" x="' . $left . '" y="' . $top . '" width="' . $targetW . '" height="' . $targetH . '" preserveAspectRatio="xMidYMid meet" />';
+        }
 
         $svg = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ' . $roomW . ' ' . $roomH . '" width="' . $roomW . '" height="' . $roomH . '">' . "\n"
             . '  <defs>' . "\n"
             . '    <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%">' . "\n"
-            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="14" />' . "\n"
+            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="12" />' . "\n"
             . '    </filter>' . "\n"
             . '  </defs>' . "\n"
             . '  <!-- Customer Real Room (100% Unchanged) -->' . "\n"
             . '  <image href="data:' . $roomMime . ';base64,' . $roomB64 . '" width="' . $roomW . '" height="' . $roomH . '" preserveAspectRatio="none" />' . "\n"
-            . '  <!-- Realistic Contact Floor Shadow -->' . "\n"
-            . '  <ellipse cx="' . $shadowCx . '" cy="' . $shadowCy . '" rx="' . $shadowRx . '" ry="' . $shadowRy . '" fill="rgba(12,10,8,0.48)" filter="url(#softShadow)" />' . "\n"
-            . '  <!-- Furniture Product -->' . "\n"
-            . '  <image href="data:' . $prodMime . ';base64,' . $prodB64 . '" x="' . $left . '" y="' . $top . '" width="' . $targetProdW . '" height="' . $targetProdH . '" preserveAspectRatio="xMidYMid meet" />' . "\n"
+            . '  <!-- Floor Contact Shadows -->' . "\n"
+            . implode("\n", $shadowElements) . "\n"
+            . '  <!-- Isolated Products -->' . "\n"
+            . implode("\n", $productElements) . "\n"
             . '</svg>';
 
         return file_put_contents($outputPath, $svg) !== false;
