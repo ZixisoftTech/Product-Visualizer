@@ -29,7 +29,7 @@ class ImageProcessor
 
     /**
      * Multi-Product Composite Placing up to 3 products into the customer's room
-     * with physical dimension scaling and natural contact shadows.
+     * with physical dimension scaling, perspective depth, and natural contact shadows.
      * GUARANTEES 100% preservation of the customer's actual room.
      */
     public static function createMultiProductComposite(
@@ -37,10 +37,21 @@ class ImageProcessor
         array $products,
         string $outputPath,
         array $roomDims = [],
-        string $placement = 'Center'
+        string $placementMode = 'auto',
+        ?float $tapX = null,
+        ?float $tapY = null,
+        array $adjustments = []
     ): bool {
-        // If GD is available, can attempt GD; SVG composite is universal and 100% crisp
-        return self::createSvgMultiComposite($roomPath, $products, $outputPath, $roomDims, $placement);
+        return self::createSvgMultiComposite(
+            $roomPath,
+            $products,
+            $outputPath,
+            $roomDims,
+            $placementMode,
+            $tapX,
+            $tapY,
+            $adjustments
+        );
     }
 
     /**
@@ -54,15 +65,17 @@ class ImageProcessor
         float $productWidth = 84,
         float $productDepth = 36,
         float $productHeight = 34,
-        string $unit = 'inch'
+        string $unit = 'inch',
+        array $adjustments = []
     ): bool {
         $products = [
             [
-                'path'   => $productPath,
-                'width'  => $productWidth,
-                'depth'  => $productDepth,
-                'height' => $productHeight,
-                'unit'   => $unit,
+                'path'           => $productPath,
+                'width'          => $productWidth,
+                'depth'          => $productDepth,
+                'height'         => $productHeight,
+                'unit'           => $unit,
+                'placement_hint' => $placement,
             ]
         ];
 
@@ -71,32 +84,33 @@ class ImageProcessor
             $products,
             $outputPath,
             ['length' => 15, 'width' => 12, 'height' => 10, 'unit' => 'ft'],
-            $placement
+            'auto',
+            null,
+            null,
+            $adjustments
         );
     }
 
     /**
-     * Pure SVG-based Multi-Product Composite (no GD/Imagick dependency)
-     * Real-world dimension scaling: room dimensions (ft/m) & product dimensions (in/cm)
+     * Pure SVG-based Multi-Product Composite with SpatialEngine (no GD/Imagick dependency)
+     * Real-world physical dimension scaling: room dimensions (ft/m) & product dimensions (in/cm)
+     * Perspective depth calculation, floor-ground contact positioning, and multi-layer soft shadows.
      */
     protected static function createSvgMultiComposite(
         string $roomPath,
         array $products,
         string $outputPath,
         array $roomDims = [],
-        string $placement = 'Center'
+        string $placementMode = 'auto',
+        ?float $tapX = null,
+        ?float $tapY = null,
+        array $adjustments = []
     ): bool {
         $roomInfo = @getimagesize($roomPath);
         $roomW = $roomInfo ? ($roomInfo[0] ?? 1200) : 1200;
         $roomH = $roomInfo ? ($roomInfo[1] ?? 900) : 900;
         $roomMime = $roomInfo['mime'] ?? 'image/jpeg';
         $roomB64 = base64_encode(file_get_contents($roomPath));
-
-        // Real-world room width in meters
-        $rWidth = (float) ($roomDims['width'] ?? 12);
-        $rUnit = strtolower((string) ($roomDims['unit'] ?? 'ft'));
-        $roomWidthMeters = ($rUnit === 'ft') ? ($rWidth * 0.3048) : (($rUnit === 'cm') ? ($rWidth * 0.01) : $rWidth);
-        if ($roomWidthMeters <= 0.5) $roomWidthMeters = 3.65; // ~12ft fallback
 
         $count = count($products);
         $shadowElements = [];
@@ -112,97 +126,72 @@ class ImageProcessor
             $pMime = $pInfo['mime'] ?? 'image/png';
             $pB64 = base64_encode(file_get_contents($pPath));
 
-            // Product width in meters
-            $pw = (float) ($prod['width'] ?? 84);
-            $pu = strtolower((string) ($prod['unit'] ?? 'inch'));
-            $prodWidthMeters = ($pu === 'inch' || $pu === 'in') ? ($pw * 0.0254) : (($pu === 'cm') ? ($pw * 0.01) : ($pw * 0.3048));
-            if ($prodWidthMeters <= 0.1) $prodWidthMeters = 2.13; // ~84in fallback
+            $prodWithDims = array_merge($prod, [
+                'orig_w' => $pW,
+                'orig_h' => $pH,
+            ]);
 
-            // Physical scale ratio relative to room width
-            $scaleRatio = $prodWidthMeters / max(1.0, $roomWidthMeters);
+            // Call the Spatial Planning & Perspective Engine
+            $spatial = SpatialEngine::planPlacement(
+                $roomW,
+                $roomH,
+                $prodWithDims,
+                $roomDims,
+                $placementMode,
+                $tapX,
+                $tapY,
+                $idx,
+                $count,
+                $adjustments
+            );
 
-            // Layout based on product count
-            if ($count === 1) {
-                $scaleRatio = max(0.25, min(0.60, $scaleRatio));
-                $targetW = (int) round($roomW * $scaleRatio);
-                $aspect = $pH / (float) max(1, $pW);
-                $targetH = (int) round($targetW * $aspect);
+            $left     = $spatial['left'];
+            $top      = $spatial['top'];
+            $targetW  = $spatial['target_w'];
+            $targetH  = $spatial['target_h'];
+            $rotation = $spatial['rotation'] ?? 0;
 
-                $left = (int) round(($roomW - $targetW) / 2);
-                $top = (int) round($roomH * 0.46);
+            // Multi-layered floor contact shadows for photoreal grounding
+            $cx = $spatial['shadow_cx'];
+            $cy = $spatial['shadow_cy'];
+            $rx = $spatial['shadow_rx'];
+            $ry = $spatial['shadow_ry'];
 
-                $pLower = strtolower($placement);
-                if (str_contains($pLower, 'left')) {
-                    $left = (int) round($roomW * 0.12);
-                } elseif (str_contains($pLower, 'right')) {
-                    $left = (int) round($roomW * 0.88 - $targetW);
-                } elseif (str_contains($pLower, 'corner')) {
-                    $left = (int) round($roomW * 0.10);
-                    $top = (int) round($roomH * 0.40);
-                }
-                if (str_contains($pLower, 'back')) {
-                    $top = (int) round($roomH * 0.38);
-                }
-            } elseif ($count === 2) {
-                $scaleRatio = max(0.20, min(0.48, $scaleRatio));
-                $targetW = (int) round($roomW * $scaleRatio);
-                $aspect = $pH / (float) max(1, $pW);
-                $targetH = (int) round($targetW * $aspect);
+            // Deep contact occlusion core (darker, tighter directly underneath)
+            $coreRx = (int) round($rx * 0.75);
+            $coreRy = (int) round($ry * 0.60);
+            $shadowElements[] = '    <ellipse cx="' . $cx . '" cy="' . $cy . '" rx="' . $coreRx . '" ry="' . $coreRy . '" fill="rgba(15,12,10,0.65)" filter="url(#coreShadow)" />';
 
-                if ($idx === 0) {
-                    // Product 1: Left / Center
-                    $left = (int) round($roomW * 0.14);
-                    $top = (int) round($roomH * 0.44);
-                } else {
-                    // Product 2: Right / Slightly forward
-                    $left = (int) round($roomW * 0.54);
-                    $top = (int) round($roomH * 0.47);
-                }
-            } else { // 3 products
-                $scaleRatio = max(0.18, min(0.42, $scaleRatio));
-                $targetW = (int) round($roomW * $scaleRatio);
-                $aspect = $pH / (float) max(1, $pW);
-                $targetH = (int) round($targetW * $aspect);
+            // Ambient diffused floor shadow
+            $shadowElements[] = '    <ellipse cx="' . $cx . '" cy="' . $cy . '" rx="' . $rx . '" ry="' . $ry . '" fill="rgba(25,20,16,0.38)" filter="url(#ambientShadow)" />';
 
-                if ($idx === 0) {
-                    // Product 1 (Primary / Center-Back)
-                    $left = (int) round(($roomW - $targetW) / 2);
-                    $top = (int) round($roomH * 0.40);
-                } elseif ($idx === 1) {
-                    // Product 2 (Left side)
-                    $left = (int) round($roomW * 0.08);
-                    $top = (int) round($roomH * 0.47);
-                } else {
-                    // Product 3 (Right / Foreground)
-                    $left = (int) round($roomW * 0.60);
-                    $top = (int) round($roomH * 0.49);
-                }
+            // Product image element with optional subtle rotation transform around its center
+            if ($rotation != 0) {
+                $pCenterCenterX = $left + ($targetW / 2);
+                $pCenterCenterY = $top + ($targetH / 2);
+                $transform = ' transform="rotate(' . $rotation . ' ' . $pCenterCenterX . ' ' . $pCenterCenterY . ')"';
+            } else {
+                $transform = '';
             }
 
-            // Shadow calculation for this product
-            $shadowW = $targetW + 35;
-            $shadowH = (int) round($targetH * 0.22);
-            $shadowCx = (int) round($left + $targetW / 2);
-            $shadowCy = (int) round($top + $targetH - $shadowH * 0.25);
-            $shadowRx = (int) round($shadowW / 2);
-            $shadowRy = (int) round($shadowH / 2);
-
-            $shadowElements[] = '  <ellipse cx="' . $shadowCx . '" cy="' . $shadowCy . '" rx="' . $shadowRx . '" ry="' . $shadowRy . '" fill="rgba(10,8,6,0.50)" filter="url(#softShadow)" />';
-            $productElements[] = '  <image href="data:' . $pMime . ';base64,' . $pB64 . '" x="' . $left . '" y="' . $top . '" width="' . $targetW . '" height="' . $targetH . '" preserveAspectRatio="xMidYMid meet" />';
+            $productElements[] = '    <image href="data:' . $pMime . ';base64,' . $pB64 . '" x="' . $left . '" y="' . $top . '" width="' . $targetW . '" height="' . $targetH . '" preserveAspectRatio="xMidYMid meet"' . $transform . ' />';
         }
 
         $svg = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ' . $roomW . ' ' . $roomH . '" width="' . $roomW . '" height="' . $roomH . '">' . "\n"
             . '  <defs>' . "\n"
-            . '    <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%">' . "\n"
-            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="12" />' . "\n"
+            . '    <filter id="coreShadow" x="-30%" y="-30%" width="160%" height="160%">' . "\n"
+            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="6" />' . "\n"
+            . '    </filter>' . "\n"
+            . '    <filter id="ambientShadow" x="-50%" y="-50%" width="200%" height="200%">' . "\n"
+            . '      <feGaussianBlur in="SourceGraphic" stdDeviation="16" />' . "\n"
             . '    </filter>' . "\n"
             . '  </defs>' . "\n"
             . '  <!-- Customer Real Room (100% Unchanged) -->' . "\n"
             . '  <image href="data:' . $roomMime . ';base64,' . $roomB64 . '" width="' . $roomW . '" height="' . $roomH . '" preserveAspectRatio="none" />' . "\n"
-            . '  <!-- Floor Contact Shadows -->' . "\n"
+            . '  <!-- Floor Contact Shadows (Multi-layered Occlusion) -->' . "\n"
             . implode("\n", $shadowElements) . "\n"
-            . '  <!-- Isolated Products -->' . "\n"
+            . '  <!-- Authoritative Isolated Products -->' . "\n"
             . implode("\n", $productElements) . "\n"
             . '</svg>';
 

@@ -195,14 +195,58 @@
         <i class="bi bi-check-circle-fill text-success me-1"></i> Maximum of 3 products added
       </div>
 
-      <!-- Optional Placement Field -->
+      <!-- Placement Mode Selector (Mode A: AI Auto Place vs Mode B: Tap to Place) -->
+      <div class="card card-custom p-3 mb-3">
+        <label class="form-label small fw-bold text-dark mb-2">
+          <i class="bi bi-geo-alt-fill text-warning me-1"></i> Placement Mode
+        </label>
+        
+        <div class="btn-group w-100 mb-2" role="group" aria-label="Placement mode">
+          <input type="radio" class="btn-check" name="placementModeRadio" id="modeAutoRadio" value="auto" checked autocomplete="off">
+          <label class="btn btn-outline-dark btn-sm py-2 fw-semibold" for="modeAutoRadio">
+            <i class="bi bi-magic me-1 text-warning"></i> AI Auto Place
+          </label>
+
+          <input type="radio" class="btn-check" name="placementModeRadio" id="modeTapRadio" value="tap" autocomplete="off">
+          <label class="btn btn-outline-dark btn-sm py-2 fw-semibold" for="modeTapRadio">
+            <i class="bi bi-cursor-fill me-1 text-warning"></i> Tap to Place
+          </label>
+        </div>
+
+        <!-- Mode A Description -->
+        <div id="modeAutoDesc" class="small text-muted p-2 rounded-3 bg-light">
+          <i class="bi bi-lightbulb text-warning me-1"></i>
+          AI spatial engine calculates depth, eye-level perspective, and natural circulation to place products optimally.
+        </div>
+
+        <!-- Mode B Interactive Room Canvas -->
+        <div id="modeTapContainer" class="d-none mt-2">
+          <p class="small text-muted mb-2">
+            <i class="bi bi-hand-index-thumb text-warning me-1"></i>
+            Tap anywhere on the floor where you want the furniture placed:
+          </p>
+          <div id="tapRoomCanvasWrapper" class="position-relative rounded-3 overflow-hidden border shadow-sm" style="cursor: crosshair;">
+            <img id="tapRoomImg" src="" alt="Room for tap placement" class="w-100 d-block" style="max-height: 240px; object-fit: contain; background: #1c1917;">
+            <!-- Tap Marker Pin -->
+            <div id="tapMarkerPin" class="position-absolute d-none" style="transform: translate(-50%, -50%); pointer-events: none; z-index: 10;">
+              <span class="tap-pin-pulse"></span>
+              <span class="tap-pin-dot">●</span>
+            </div>
+          </div>
+          <div id="tapCoordinatesLabel" class="small font-monospace text-muted mt-1 text-center" style="font-size: 0.75rem;">
+            No spot selected yet (tap on floor)
+          </div>
+        </div>
+      </div>
+
+      <!-- Optional Placement Hint -->
       <div class="card card-custom p-3 mb-4">
         <label for="optionalPlacement" class="form-label small fw-bold text-dark mb-1">
-          Placement <span class="text-muted fw-normal">(optional)</span>
+          Placement Hint <span class="text-muted fw-normal">(optional)</span>
         </label>
         <input type="text" id="optionalPlacement" class="form-control rounded-3" placeholder="Example: against left wall, or center" maxlength="150">
         <p class="small text-muted mt-1 mb-0" style="font-size: 0.75rem;">
-          If left blank, AI automatically determines the best natural location.
+          Optional guidance for AI placement (e.g. against back wall, left side, near window).
         </p>
       </div>
 
@@ -282,6 +326,46 @@
         <p class="text-center text-muted small mt-2 mb-1" style="font-size: 0.75rem;">
           <i class="bi bi-arrow-left-right me-1"></i> Slide horizontally to compare with original room
         </p>
+      </div>
+
+      <!-- Quick Non-Technical Adjustment Bar -->
+      <div class="card card-custom p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="small fw-bold text-dark"><i class="bi bi-sliders text-warning me-1"></i> Fine-Tune Placement</span>
+          <span id="adjustStatus" class="small text-muted font-monospace" style="font-size: 0.72rem;">Tap to nudge</span>
+        </div>
+        <div class="row g-1">
+          <div class="col-4">
+            <button type="button" id="nudgeLeftBtn" class="btn btn-outline-dark btn-sm w-100 py-2 rounded-3 d-flex align-items-center justify-content-center gap-1" style="font-size: 0.8rem;">
+              <i class="bi bi-arrow-left"></i> Left
+            </button>
+          </div>
+          <div class="col-4">
+            <button type="button" id="nudgeRightBtn" class="btn btn-outline-dark btn-sm w-100 py-2 rounded-3 d-flex align-items-center justify-content-center gap-1" style="font-size: 0.8rem;">
+              Right <i class="bi bi-arrow-right"></i>
+            </button>
+          </div>
+          <div class="col-4">
+            <button type="button" id="rotateBtn" class="btn btn-outline-dark btn-sm w-100 py-2 rounded-3 d-flex align-items-center justify-content-center gap-1" style="font-size: 0.8rem;">
+              <i class="bi bi-arrow-clockwise"></i> Rotate
+            </button>
+          </div>
+          <div class="col-4 mt-1">
+            <button type="button" id="scaleMinusBtn" class="btn btn-outline-secondary btn-sm w-100 py-2 rounded-3 d-flex align-items-center justify-content-center gap-1" style="font-size: 0.8rem;">
+              <i class="bi bi-dash-lg"></i> Smaller
+            </button>
+          </div>
+          <div class="col-4 mt-1">
+            <button type="button" id="scalePlusBtn" class="btn btn-outline-secondary btn-sm w-100 py-2 rounded-3 d-flex align-items-center justify-content-center gap-1" style="font-size: 0.8rem;">
+              <i class="bi bi-plus-lg"></i> Bigger
+            </button>
+          </div>
+          <div class="col-4 mt-1">
+            <button type="button" id="resetAdjustBtn" class="btn btn-light border btn-sm w-100 py-2 rounded-3 d-flex align-items-center justify-content-center gap-1 text-muted" style="font-size: 0.8rem;">
+              <i class="bi bi-arrow-counterclockwise"></i> Reset
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Products Used Thumbnails -->

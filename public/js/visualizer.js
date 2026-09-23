@@ -107,6 +107,17 @@ document.addEventListener('DOMContentLoaded', () => {
   let products = []; // Array of { id, file, previewUrl, width, depth, height, unit }
   let currentVisualization = null;
 
+  // Spatial Placement & Adjustment State
+  let currentPlacementMode = 'auto'; // 'auto' or 'tap'
+  let currentTapX = null;
+  let currentTapY = null;
+  let currentAdjustments = {
+    offset_x: 0,
+    offset_y: 0,
+    scale_multiplier: 1.0,
+    rotation: 0,
+  };
+
   // Init Slider
   initImageSlider('sliderContainer', 'sliderRange', 'sliderClip', 'sliderDivider');
 
@@ -188,6 +199,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     showScreen(2);
+    if (tapRoomImg && roomPreviewUrl) {
+      tapRoomImg.src = roomPreviewUrl;
+    }
   });
 
   document.getElementById('editRoomBtn')?.addEventListener('click', () => showScreen(1));
@@ -205,6 +219,70 @@ document.addEventListener('DOMContentLoaded', () => {
   const productCountBadge = document.getElementById('productCountBadge');
   const optionalPlacement = document.getElementById('optionalPlacement');
   const generateVisualizationBtn = document.getElementById('generateVisualizationBtn');
+
+  // Mode A / Mode B Placement Elements
+  const modeAutoRadio = document.getElementById('modeAutoRadio');
+  const modeTapRadio = document.getElementById('modeTapRadio');
+  const modeAutoDesc = document.getElementById('modeAutoDesc');
+  const modeTapContainer = document.getElementById('modeTapContainer');
+  const tapRoomImg = document.getElementById('tapRoomImg');
+  const tapRoomCanvasWrapper = document.getElementById('tapRoomCanvasWrapper');
+  const tapMarkerPin = document.getElementById('tapMarkerPin');
+  const tapCoordinatesLabel = document.getElementById('tapCoordinatesLabel');
+
+  function updatePlacementModeUI() {
+    if (modeAutoRadio?.checked) {
+      currentPlacementMode = 'auto';
+      if (modeAutoDesc) modeAutoDesc.classList.remove('d-none');
+      if (modeTapContainer) modeTapContainer.classList.add('d-none');
+    } else {
+      currentPlacementMode = 'tap';
+      if (modeAutoDesc) modeAutoDesc.classList.add('d-none');
+      if (modeTapContainer) modeTapContainer.classList.remove('d-none');
+      if (tapRoomImg && roomPreviewUrl) tapRoomImg.src = roomPreviewUrl;
+    }
+  }
+
+  if (modeAutoRadio) modeAutoRadio.addEventListener('change', updatePlacementModeUI);
+  if (modeTapRadio) modeTapRadio.addEventListener('change', updatePlacementModeUI);
+
+  // Handle Tap on Room Preview Canvas
+  if (tapRoomCanvasWrapper) {
+    tapRoomCanvasWrapper.addEventListener('click', (e) => {
+      const rect = tapRoomCanvasWrapper.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      let normX = clickX / rect.width;
+      let normY = clickY / rect.height;
+
+      normX = Math.max(0.08, Math.min(0.92, normX));
+      normY = Math.max(0.10, Math.min(0.95, normY));
+
+      currentTapX = Math.round(normX * 1000) / 1000;
+      currentTapY = Math.round(normY * 1000) / 1000;
+
+      // Position visual marker pin
+      if (tapMarkerPin) {
+        tapMarkerPin.style.left = (normX * 100) + '%';
+        tapMarkerPin.style.top = (normY * 100) + '%';
+        tapMarkerPin.classList.remove('d-none');
+      }
+
+      // Readable position label
+      let horizDesc = 'Center';
+      if (normX < 0.35) horizDesc = 'Left side';
+      else if (normX > 0.65) horizDesc = 'Right side';
+
+      let depthDesc = 'Floor contact';
+      if (normY < 0.42) depthDesc = 'Against back wall';
+      else if (normY > 0.70) depthDesc = 'Foreground floor';
+
+      if (tapCoordinatesLabel) {
+        tapCoordinatesLabel.innerHTML = `<i class="bi bi-geo-alt-fill text-warning"></i> Selected: <strong>${horizDesc}</strong> (${depthDesc})`;
+      }
+    });
+  }
 
   async function handleProductPhotoSelect(file) {
     if (!file || products.length >= 3) return;
@@ -409,6 +487,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       formData.append('products_data', JSON.stringify(productsMeta));
       formData.append('placement', optionalPlacement.value.trim() || 'Center');
+      formData.append('placement_mode', currentPlacementMode);
+      if (currentPlacementMode === 'tap' && currentTapX !== null && currentTapY !== null) {
+        formData.append('tap_x', currentTapX);
+        formData.append('tap_y', currentTapY);
+      }
+
+      // Reset manual fine-tuning offsets for fresh generation
+      currentAdjustments = {
+        offset_x: 0,
+        offset_y: 0,
+        scale_multiplier: 1.0,
+        rotation: 0,
+      };
 
       const res = await fetch('/api/visualize', {
         method: 'POST',
@@ -453,6 +544,85 @@ document.addEventListener('DOMContentLoaded', () => {
   const shareImageBtn = document.getElementById('shareImageBtn');
   const tryAgainBtn = document.getElementById('tryAgainBtn');
   const startOverBtn = document.getElementById('startOverBtn');
+
+  // Fine-Tune Controls Elements
+  const nudgeLeftBtn = document.getElementById('nudgeLeftBtn');
+  const nudgeRightBtn = document.getElementById('nudgeRightBtn');
+  const rotateBtn = document.getElementById('rotateBtn');
+  const scaleMinusBtn = document.getElementById('scaleMinusBtn');
+  const scalePlusBtn = document.getElementById('scalePlusBtn');
+  const resetAdjustBtn = document.getElementById('resetAdjustBtn');
+  const adjustStatus = document.getElementById('adjustStatus');
+
+  let isAdjusting = false;
+
+  async function applyAdjustment(type) {
+    if (!currentVisualization || isAdjusting) return;
+    isAdjusting = true;
+
+    if (type === 'left') {
+      currentAdjustments.offset_x -= 0.04;
+    } else if (type === 'right') {
+      currentAdjustments.offset_x += 0.04;
+    } else if (type === 'rotate') {
+      currentAdjustments.rotation = (currentAdjustments.rotation + 15) % 360;
+    } else if (type === 'scaleMinus') {
+      currentAdjustments.scale_multiplier = Math.max(0.60, Math.round((currentAdjustments.scale_multiplier - 0.08) * 100) / 100);
+    } else if (type === 'scalePlus') {
+      currentAdjustments.scale_multiplier = Math.min(1.50, Math.round((currentAdjustments.scale_multiplier + 0.08) * 100) / 100);
+    } else if (type === 'reset') {
+      currentAdjustments = { offset_x: 0, offset_y: 0, scale_multiplier: 1.0, rotation: 0 };
+    }
+
+    if (adjustStatus) {
+      adjustStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-1 text-warning" role="status"></span> Updating...';
+    }
+
+    try {
+      const payload = {
+        placement_mode: currentPlacementMode,
+        tap_x: currentTapX,
+        tap_y: currentTapY,
+        offset_x: currentAdjustments.offset_x,
+        offset_y: currentAdjustments.offset_y,
+        scale_multiplier: currentAdjustments.scale_multiplier,
+        rotation: currentAdjustments.rotation,
+      };
+
+      const res = await fetch(`/api/regenerate/${currentVisualization.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data?.success && data?.visualization) {
+        currentVisualization = data.visualization;
+        const newSrc = data.visualization.generated_image_data || data.visualization.generated_image_path;
+        sliderAfterImg.src = newSrc;
+        if (adjustStatus) {
+          adjustStatus.textContent = 'Adjusted ✓';
+          setTimeout(() => {
+            if (adjustStatus) adjustStatus.textContent = 'Tap to nudge';
+          }, 1800);
+        }
+      } else {
+        throw new Error(data?.error || 'Adjustment failed');
+      }
+    } catch (err) {
+      console.warn('Fine-tune adjust notice:', err);
+      if (adjustStatus) adjustStatus.textContent = 'Error updating';
+    } finally {
+      isAdjusting = false;
+    }
+  }
+
+  if (nudgeLeftBtn) nudgeLeftBtn.addEventListener('click', () => applyAdjustment('left'));
+  if (nudgeRightBtn) nudgeRightBtn.addEventListener('click', () => applyAdjustment('right'));
+  if (rotateBtn) rotateBtn.addEventListener('click', () => applyAdjustment('rotate'));
+  if (scaleMinusBtn) scaleMinusBtn.addEventListener('click', () => applyAdjustment('scaleMinus'));
+  if (scalePlusBtn) scalePlusBtn.addEventListener('click', () => applyAdjustment('scalePlus'));
+  if (resetAdjustBtn) resetAdjustBtn.addEventListener('click', () => applyAdjustment('reset'));
 
   function displayVisualizationResult(vis) {
     const generatedSrc = vis.generated_image_data || vis.generated_image_path;

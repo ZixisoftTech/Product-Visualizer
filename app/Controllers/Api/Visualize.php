@@ -109,8 +109,18 @@ class Visualize extends BaseController
                 ]);
             }
 
-            $placement = trim((string) $this->request->getPost('placement')) ?: 'Center';
+            $placementMode = strtolower(trim((string) $this->request->getPost('placement_mode'))) ?: 'auto';
+            $tapX = $this->request->getPost('tap_x') !== null ? (float) $this->request->getPost('tap_x') : null;
+            $tapY = $this->request->getPost('tap_y') !== null ? (float) $this->request->getPost('tap_y') : null;
+            $placement = trim((string) $this->request->getPost('placement')) ?: ($placementMode === 'tap' ? 'Tap Placement' : 'Center');
             $instructions = trim((string) $this->request->getPost('instructions'));
+
+            $adjustments = [
+                'offset_x'         => (float) ($this->request->getPost('offset_x') ?: 0),
+                'offset_y'         => (float) ($this->request->getPost('offset_y') ?: 0),
+                'scale_multiplier' => (float) ($this->request->getPost('scale_multiplier') ?: 1.0),
+                'rotation'         => (float) ($this->request->getPost('rotation') ?: 0),
+            ];
 
             // 3. Create Record
             $visualizationId = sprintf(
@@ -148,7 +158,7 @@ class Visualize extends BaseController
                 log_message('warning', '[DB Insert Skipped] ' . $e->getMessage());
             }
 
-            // 4. Generate Visualization Composite
+            // 4. Generate Visualization Composite via Spatial & Perspective Engine
             $genFileName = 'gen_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.png';
             $genDir = StorageService::getUploadDir('generated');
             $genAbsPath = $genDir . '/' . $genFileName;
@@ -159,7 +169,10 @@ class Visualize extends BaseController
                 $productsList,
                 $genAbsPath,
                 $roomDims,
-                $placement
+                $placementMode,
+                $tapX,
+                $tapY,
+                $adjustments
             );
 
             if ($compositeOk && file_exists($genAbsPath)) {
