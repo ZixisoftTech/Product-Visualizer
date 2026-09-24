@@ -200,26 +200,51 @@ class Visualize extends BaseController
                 log_message('warning', '[DB Insert Skipped] ' . $e->getMessage());
             }
 
-            // 5. Generate Visualization: Real Customer Room + Real Products + Photorealistic Spatial Grounding
+            // 5. Generate 3D Realistic Visualization via OpenAI Generative Engine
             $genFileName = 'gen_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.png';
             $genDir = StorageService::getUploadDir('generated');
             $genAbsPath = $genDir . '/' . $genFileName;
             $genRelPath = 'uploads/generated/' . $genFileName;
 
-            $engineUsed = 'spatial_photoreal_engine';
+            $engineUsed = 'openai_3d_photoreal';
+            $aiPromptUsed = null;
+            $genOk = false;
 
-            $compositeOk = ImageProcessor::createMultiProductComposite(
-                $hallAbsPath,
-                $productsList,
-                $genAbsPath,
-                $roomDims,
-                $placementMode,
-                $tapX,
-                $tapY,
-                $adjustments
-            );
+            if ($openAI->isConfigured()) {
+                $aiGenResult = $openAI->generatePhotorealisticInterior(
+                    $hallAbsPath,
+                    $productsList,
+                    $genAbsPath,
+                    $roomDims,
+                    $placementMode,
+                    $instructions ?: $placement,
+                    $adjustments
+                );
 
-            if ($compositeOk && file_exists($genAbsPath)) {
+                if ($aiGenResult['success'] && file_exists($genAbsPath)) {
+                    $genOk = true;
+                    $aiPromptUsed = $aiGenResult['ai_prompt'] ?? null;
+                    $engineUsed = 'openai_' . ($aiGenResult['model_used'] ?? 'gpt-image-1');
+                } else {
+                    log_message('warning', '[OpenAI Gen Failed, falling back to composite] ' . ($aiGenResult['error'] ?? 'unknown'));
+                }
+            }
+
+            if (!$genOk) {
+                $engineUsed = 'spatial_photoreal_engine';
+                $genOk = ImageProcessor::createMultiProductComposite(
+                    $hallAbsPath,
+                    $productsList,
+                    $genAbsPath,
+                    $roomDims,
+                    $placementMode,
+                    $tapX,
+                    $tapY,
+                    $adjustments
+                );
+            }
+
+            if ($genOk && file_exists($genAbsPath)) {
                 $rawContent = file_get_contents($genAbsPath);
                 $isSvg = str_starts_with(trim($rawContent), '<?xml') || str_starts_with(trim($rawContent), '<svg');
                 $mime = $isSvg ? 'image/svg+xml' : 'image/png';
@@ -257,7 +282,7 @@ class Visualize extends BaseController
                         'ai_intelligence_used' => $aiUsed,
                         'ai_analysis'          => $aiAnalysis,
                         'engine_used'          => $engineUsed,
-                        'ai_prompt'            => null,
+                        'ai_prompt'            => $aiPromptUsed,
                     ]),
                 ]);
             }

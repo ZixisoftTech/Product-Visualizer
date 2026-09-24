@@ -836,11 +836,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let loadingInterval = null;
   const loadingMessages = [
-    'Preserving your real room architecture 100%...',
-    'Isolating furniture and removing showroom background...',
-    'GPT-4o analyzing room lighting direction & floor plane...',
-    'Placing products with perspective scale & depth...',
-    'Generating photorealistic contact shadows & reflections...',
+    'GPT-4o Vision analyzing customer room architecture & lighting...',
+    'Analyzing furniture design, materials, fabric & wood finish...',
+    'Synthesizing 3D spatial perspective & natural floor placement...',
+    'OpenAI generative engine creating 3D photorealistic interior visualization...',
+    'Rendering natural contact shadows & ambient floor reflections...',
+    'Finalizing ultra-photorealistic architectural render...',
   ];
 
   function startLoadingCycle() {

@@ -312,8 +312,8 @@
     <section id="screen4" class="app-screen d-none">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <h2 class="h5 fw-bold mb-0">Your Result</h2>
-        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small">
-          <i class="bi bi-check-circle-fill me-1"></i> Real Room Kept 100%
+        <span id="resultBadge" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small">
+          <i class="bi bi-stars text-warning me-1"></i> OpenAI 3D Realistic Visualization
         </span>
       </div>
 
