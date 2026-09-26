@@ -1051,6 +1051,17 @@ document.addEventListener('DOMContentLoaded', () => {
     sliderAfterImg.src = generatedSrc;
     sliderBeforeImg.src = roomSrc;
 
+    const resultBadge = document.getElementById('resultBadge');
+    if (resultBadge) {
+      if (vis.engine_used && vis.engine_used.startsWith('openai_')) {
+        resultBadge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small';
+        resultBadge.innerHTML = '<i class="bi bi-stars text-warning me-1"></i> OpenAI 3D Realistic Visualization';
+      } else {
+        resultBadge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill small';
+        resultBadge.innerHTML = '<i class="bi bi-check-circle-fill text-success me-1"></i> 100% Real Room Grounded';
+      }
+    }
+
     // Render adjust product selector if more than 1 product
     const adjustProductSelector = document.getElementById('adjustProductSelector');
     if (adjustProductSelector) {

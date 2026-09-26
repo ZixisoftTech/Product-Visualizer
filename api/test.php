@@ -18,10 +18,12 @@ curl_setopt_array($ch, [
         'Content-Type: application/json',
     ],
     CURLOPT_POSTFIELDS     => json_encode([
-        'model'  => 'gpt-image-1',
-        'prompt' => 'A modern luxury teal armchair in an empty room, 3D photorealistic',
-        'size'   => '1024x1024',
-        'n'      => 1,
+        'model'           => 'dall-e-3',
+        'prompt'          => 'A modern luxury teal armchair in an empty room, 3D photorealistic',
+        'size'            => '1024x1024',
+        'quality'         => 'standard',
+        'response_format' => 'b64_json',
+        'n'               => 1,
     ]),
 ]);
 $res = curl_exec($ch);

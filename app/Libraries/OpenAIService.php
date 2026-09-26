@@ -38,7 +38,7 @@ class OpenAIService
         }
         $this->visionModel = getenv('OPENAI_VISION_MODEL') ?: 'gpt-4o';
         $gen = getenv('OPENAI_GEN_MODEL');
-        $this->genModel = (!empty($gen) && $gen !== 'dall-e-3') ? $gen : 'gpt-image-1';
+        $this->genModel = !empty($gen) ? $gen : 'dall-e-3';
     }
 
     public function isConfigured(): bool
@@ -288,8 +288,8 @@ class OpenAIService
                     . "Architectural Digest cover feature styling, 35mm interior lens, crisp 8k photorealism.";
             }
 
-            // 4. Generate Image via gpt-image-1
-            $genModel = $this->genModel ?: 'gpt-image-1';
+            // 4. Generate Image via DALL-E 3
+            $genModel = (!empty($this->genModel) && $this->genModel !== 'gpt-image-1') ? $this->genModel : 'dall-e-3';
             $chGen = curl_init('https://api.openai.com/v1/images/generations');
             curl_setopt_array($chGen, [
                 CURLOPT_RETURNTRANSFER => true,
@@ -300,10 +300,12 @@ class OpenAIService
                     'Content-Type: application/json',
                 ],
                 CURLOPT_POSTFIELDS     => json_encode([
-                    'model'  => $genModel,
-                    'prompt' => $aiPrompt,
-                    'size'   => '1024x1024',
-                    'n'      => 1,
+                    'model'           => $genModel,
+                    'prompt'          => $aiPrompt,
+                    'size'            => '1024x1024',
+                    'quality'         => 'standard',
+                    'response_format' => 'b64_json',
+                    'n'               => 1,
                 ]),
             ]);
 

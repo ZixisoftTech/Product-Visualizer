@@ -120,6 +120,20 @@ class Regenerate extends BaseController
 
         $engineUsed = 'spatial_photoreal_engine';
 
+        $allAdjustments = [];
+        if (!empty($productsList)) {
+            foreach ($productsList as $pIdx => $pVal) {
+                $allAdjustments[$pIdx] = ($pIdx === $adjustProductIndex) ? $adjustments : [
+                    'offset_x'         => 0,
+                    'offset_y'         => 0,
+                    'scale_multiplier' => 1.0,
+                    'rotation'         => 0,
+                ];
+            }
+        } else {
+            $allAdjustments = $adjustments;
+        }
+
         $compositeOk = ImageProcessor::createMultiProductComposite(
             $hallAbsPath,
             $productsList,

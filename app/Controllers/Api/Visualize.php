@@ -224,7 +224,7 @@ class Visualize extends BaseController
                 if ($aiGenResult['success'] && file_exists($genAbsPath)) {
                     $genOk = true;
                     $aiPromptUsed = $aiGenResult['ai_prompt'] ?? null;
-                    $engineUsed = 'openai_' . ($aiGenResult['model_used'] ?? 'gpt-image-1');
+                    $engineUsed = 'openai_' . ($aiGenResult['model_used'] ?? 'dall-e-3');
                 } else {
                     log_message('warning', '[OpenAI Gen Failed, falling back to composite] ' . ($aiGenResult['error'] ?? 'unknown'));
                 }
