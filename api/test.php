@@ -13,7 +13,7 @@ $ch = curl_init('https://api.openai.com/v1/images/generations');
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST           => true,
-    CURLOPT_TIMEOUT        => 35,
+    CURLOPT_TIMEOUT        => 80,
     CURLOPT_HTTPHEADER     => [
         'Authorization: Bearer ' . $apiKey,
         'Content-Type: application/json',
