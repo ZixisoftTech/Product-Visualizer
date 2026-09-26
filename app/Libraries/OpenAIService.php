@@ -300,12 +300,11 @@ class OpenAIService
                     'Content-Type: application/json',
                 ],
                 CURLOPT_POSTFIELDS     => json_encode([
-                    'model'           => $genModel,
-                    'prompt'          => $aiPrompt,
-                    'size'            => '1024x1024',
-                    'quality'         => 'standard',
-                    'response_format' => 'b64_json',
-                    'n'               => 1,
+                    'model'   => $genModel,
+                    'prompt'  => $aiPrompt,
+                    'size'    => '1024x1024',
+                    'quality' => 'standard',
+                    'n'       => 1,
                 ]),
             ]);
 

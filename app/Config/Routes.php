@@ -3,7 +3,7 @@
 use CodeIgniter\Router\RouteCollection;
 
 /** @var RouteCollection $routes */
-$routes->get('/', 'Home::index');
+$routes->match(['get', 'head'], '/', 'Home::index');
 
 // API Endpoints - support both with and without 'api/' prefix for serverless environments
 $routes->post('api/visualize', 'Api\Visualize::index');
