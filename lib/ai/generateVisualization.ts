@@ -92,7 +92,7 @@ Output the customer's real room with the showroom product naturally placed insid
 
       try {
         const response = await openai.images.edit({
-          model: 'gpt-image-1',
+          model: process.env.OPENAI_GEN_MODEL ||  'gpt-image-2',
           image: [roomFile, prodFile],
           prompt: editPrompt,
           size: aiConfig.imageSize,
